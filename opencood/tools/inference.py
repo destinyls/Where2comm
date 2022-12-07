@@ -47,6 +47,10 @@ def main():
         hypes['model']['args']['fusion_args']['communication']['thre'] = opt.comm_thre
 
     hypes['validate_dir'] = hypes['test_dir']
+
+    test_inference = False
+    if "test.json" in hypes['test_dir']:
+        test_inference = True
     # assert "test" in hypes['validate_dir']
     left_hand = True if "OPV2V" in hypes['test_dir'] else False
     print(f"Left hand visualizing: {left_hand}")
@@ -120,31 +124,35 @@ def main():
                                           'fusion modes are supported.')
             if pred_box_tensor is None:
                 continue
-
-            eval_utils.caluclate_tp_fp(pred_box_tensor,
-                                       pred_score,
-                                       gt_box_tensor,
-                                       result_stat,
-                                       0.3)
-            eval_utils.caluclate_tp_fp(pred_box_tensor,
-                                       pred_score,
-                                       gt_box_tensor,
-                                       result_stat,
-                                       0.5)
-            eval_utils.caluclate_tp_fp(pred_box_tensor,
-                                       pred_score,
-                                       gt_box_tensor,
-                                       result_stat,
-                                       0.7)
+            
+            if not test_inference:
+                eval_utils.caluclate_tp_fp(pred_box_tensor,
+                                        pred_score,
+                                        gt_box_tensor,
+                                        result_stat,
+                                        0.3)
+                eval_utils.caluclate_tp_fp(pred_box_tensor,
+                                        pred_score,
+                                        gt_box_tensor,
+                                        result_stat,
+                                        0.5)
+                eval_utils.caluclate_tp_fp(pred_box_tensor,
+                                        pred_score,
+                                        gt_box_tensor,
+                                        result_stat,
+                                        0.7)
+            frame_id = int(batch_data["ego"]["sample_idx"])
             if opt.save_npy:
                 npy_save_path = os.path.join(opt.model_dir, 'npy')
                 if not os.path.exists(npy_save_path):
                     os.makedirs(npy_save_path)
+                print(pred_box_tensor.shape, pred_score.shape)
                 inference_utils.save_prediction_gt(pred_box_tensor,
+                                                   pred_score,
                                                    gt_box_tensor,
                                                    batch_data['ego'][
                                                        'origin_lidar'][0],
-                                                   i,
+                                                   frame_id,
                                                    npy_save_path)
 
             if opt.save_vis_n and opt.save_vis_n >i:
@@ -152,7 +160,7 @@ def main():
                 vis_save_path = os.path.join(opt.model_dir, 'vis_3d')
                 if not os.path.exists(vis_save_path):
                     os.makedirs(vis_save_path)
-                vis_save_path = os.path.join(opt.model_dir, 'vis_3d/3d_%05d.png' % i)
+                vis_save_path = os.path.join(opt.model_dir, 'vis_3d/3d_%05d.png' % frame_id)
                 simple_vis.visualize(pred_box_tensor,
                                     gt_box_tensor,
                                     batch_data['ego']['origin_lidar'][0],
@@ -165,7 +173,7 @@ def main():
                 vis_save_path = os.path.join(opt.model_dir, 'vis_bev')
                 if not os.path.exists(vis_save_path):
                     os.makedirs(vis_save_path)
-                vis_save_path = os.path.join(opt.model_dir, 'vis_bev/bev_%05d.png' % i)
+                vis_save_path = os.path.join(opt.model_dir, 'vis_bev/bev_%05d.png' % frame_id)
                 simple_vis.visualize(pred_box_tensor,
                                     gt_box_tensor,
                                     batch_data['ego']['origin_lidar'][0],

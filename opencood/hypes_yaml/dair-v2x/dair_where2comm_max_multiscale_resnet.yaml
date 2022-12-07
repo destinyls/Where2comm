@@ -1,8 +1,9 @@
 name: dair_where2comm_max_multiscale_resnet
-data_dir: "/GPFS/rhome/quanhaoli/workspace/dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure"
-root_dir: "/GPFS/rhome/quanhaoli/workspace/dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure/train.json"
-validate_dir: "/GPFS/rhome/quanhaoli/workspace/dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure/val.json"
-test_dir: "/GPFS/rhome/quanhaoli/workspace/dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure/val.json"
+
+data_dir: "/root/dair-v2x-c/cooperative-vehicle-infrastructure/training"
+root_dir: "/root/dair-v2x-c/cooperative-vehicle-infrastructure/training/trainval.json"
+validate_dir: "/root/dair-v2x-c/cooperative-vehicle-infrastructure/training/val.json"
+test_dir: "/root/dair-v2x-c/cooperative-vehicle-infrastructure/testing/test.json"
 
 noise_setting:
   add_noise: False

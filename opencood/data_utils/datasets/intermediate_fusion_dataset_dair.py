@@ -111,6 +111,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
         data = OrderedDict()
         data[0] = OrderedDict() # veh-side
         data[0]['ego'] = True
+        data[0]['veh_frame_id'] = veh_frame_id
         data[1] = OrderedDict() # inf-side
         data[1]['ego'] = False
  
@@ -315,6 +316,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
 
     def __getitem__(self, idx):
         base_data_dict = self.retrieve_base_data(idx)
+        veh_frame_id = base_data_dict[0]["veh_frame_id"]
 
         base_data_dict = add_noise_data_dict(base_data_dict,self.params['noise_setting'])
 
@@ -505,7 +507,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
                     projected_lidar_stack[1]})
 
 
-        processed_data_dict['ego'].update({'sample_idx': idx,
+        processed_data_dict['ego'].update({'sample_idx': veh_frame_id,
                                             'cav_id_list': cav_id_list})
 
         return processed_data_dict
