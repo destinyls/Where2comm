@@ -247,6 +247,7 @@ def compute_ap(pred_annos, num_gt):
 
 class Evaluator(object):
     def __init__(self, pred_classes):
+        print("pred_classes: ", pred_classes)
         self.pred_classes = pred_classes
         self.all_preds = {"3d": {}, "bev": {}}
         self.gt_num = {}

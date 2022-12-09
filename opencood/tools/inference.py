@@ -7,6 +7,7 @@ import argparse
 import os
 import time
 
+import numpy as np
 
 import torch
 from torch.utils.data import DataLoader
@@ -38,9 +39,27 @@ def test_parser():
     opt = parser.parse_args()
     return opt
 
-def result2dict(box_tensor, score_tensor):
-    
+def result2dict(box3d_tensor, score_tensor):
+    boxes_3d, scores_3d, labels_3d = [], [], []
+    box3d = box3d_tensor.cpu().numpy()
+    score = score_tensor.cpu().numpy() if score_tensor is not None else None
+    for i in range(box3d.shape[0]):
+        b3d = box3d[i,:,:]
+        sc = score[i] if score is not None else 1.0
+        boxes_3d.append(b3d[np.newaxis, :, :])
+        scores_3d.append(sc)
+        labels_3d.append(int(2))
 
+    if len(boxes_3d) > 0:
+        boxes_3d = np.concatenate(boxes_3d, axis=0)
+        scores_3d = np.array(scores_3d)
+        labels_3d = np.array(labels_3d)
+    else:
+        boxes_3d = np.ones((0, 8, 3))
+        labels_3d = np.zeros((0))
+        scores_3d = np.zeros((0))
+    output_dict = {"boxes_3d": boxes_3d, "scores_3d": scores_3d, "labels_3d": labels_3d}
+    return output_dict
 
 def main():
     opt = test_parser()
@@ -91,7 +110,7 @@ def main():
     result_stat = {0.3: {'tp': [], 'fp': [], 'gt': 0},
                    0.5: {'tp': [], 'fp': [], 'gt': 0},
                    0.7: {'tp': [], 'fp': [], 'gt': 0}}
-    evaluator = Evaluator("car")
+    evaluator = Evaluator(["car"])
 
     total_comm_rates = []
     # total_box = []
@@ -132,19 +151,22 @@ def main():
                 continue
             
             if not test_inference:
+                evaluator.add_frame(result2dict(pred_box_tensor, pred_score),
+                                    result2dict(pred_box_tensor, pred_score))
+
                 eval_utils.caluclate_tp_fp(pred_box_tensor,
                                         pred_score,
-                                        gt_box_tensor,
+                                        pred_box_tensor,
                                         result_stat,
                                         0.3)
                 eval_utils.caluclate_tp_fp(pred_box_tensor,
                                         pred_score,
-                                        gt_box_tensor,
+                                        pred_box_tensor,
                                         result_stat,
                                         0.5)
                 eval_utils.caluclate_tp_fp(pred_box_tensor,
                                         pred_score,
-                                        gt_box_tensor,
+                                        pred_box_tensor,
                                         result_stat,
                                         0.7)
             frame_id = int(batch_data["ego"]["sample_idx"])
@@ -201,6 +223,8 @@ def main():
         f.write(msg)
         print(msg)
 
+    evaluator.print_ap("3d")
+    evaluator.print_ap("bev")
 
 if __name__ == '__main__':
     main()

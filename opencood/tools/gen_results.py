@@ -105,7 +105,7 @@ if __name__ == "__main__":
 
     with open(pkl_pred_path, 'rb') as f:
         pred_box3d_baseline = pickle.load(f)
-    print(pred_box3d_baseline.keys(), pred_box3d_baseline["veh_id"])
+    print(pred_box3d_baseline.keys(), type(pred_box3d_baseline["boxes_3d"]), type(pred_box3d_baseline["labels_3d"]))
     inf_boxes = pred_box3d_baseline["boxes_3d"]
     inf_boxes_tensor = torch.tensor(inf_boxes).cuda()
     json_pred = load_json(json_pred_path)

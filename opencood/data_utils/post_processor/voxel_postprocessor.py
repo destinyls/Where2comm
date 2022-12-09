@@ -325,9 +325,8 @@ class VoxelPostprocessor(BasePostprocessor):
             if len(boxes3d) != 0:
                 # (N, 8, 3)
                 boxes3d_corner = \
-                    box_utils.boxes_to_corners_3d(boxes3d,
+                    box_utils.boxes_to_corners_3d_baseline(boxes3d,
                                                   order=self.params['order'])
-                
                 # STEP 2
                 # (N, 8, 3)
                 projected_boxes3d = \

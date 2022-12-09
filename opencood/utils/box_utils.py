@@ -182,7 +182,7 @@ def boxes_to_corners_3d_baseline(boxes3d, order):
         corners3d = get_3d_8points(obj_size, yaw_lidar, center_lidar)
         corners3d_list.append(corners3d[np.newaxis, :, :])
     if len(corners3d_list) > 0:
-        corners3d_array = np.concatenate(corners3d_list, axis=0)
+        corners3d_array = np.concatenate(corners3d_list, axis=0).astype(np.float32)
         corners3d_tensor = torch.tensor(corners3d_array).cuda()
     else:
         corners3d_tensor = torch.ones(0, 8, 3).cuda()
