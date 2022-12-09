@@ -5,7 +5,7 @@
 """
 Template for AnchorGenerator
 """
-
+import math
 import numpy as np
 import torch
 
@@ -80,8 +80,12 @@ class BasePostprocessor(object):
 
             # convert center to corner
             object_bbx_corner = \
-                box_utils.boxes_to_corners_3d(object_bbx_center,
+                box_utils.boxes_to_corners_3d_baseline(object_bbx_center,
                                               self.params['order'])
+
+            # object_bbx_corner = \
+            #     box_utils.boxes_to_corners_3d(object_bbx_center,
+            #                                   self.params['order'])
             projected_object_bbx_corner = \
                 box_utils.project_box3d(object_bbx_corner.float(),
                                         transformation_matrix)

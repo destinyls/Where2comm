@@ -121,7 +121,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
 
         lidar_to_novatel_json_file = load_json(os.path.join(self.root_dir,'vehicle-side/calib/lidar_to_novatel/'+str(veh_frame_id)+'.json'))
         novatel_to_world_json_file = load_json(os.path.join(self.root_dir,'vehicle-side/calib/novatel_to_world/'+str(veh_frame_id)+'.json'))
-        transformation_matrix = veh_side_rot_and_trans_to_trasnformation_matrix(lidar_to_novatel_json_file,novatel_to_world_json_file)
+        transformation_matrix = veh_side_rot_and_trans_to_trasnformation_matrix(lidar_to_novatel_json_file, novatel_to_world_json_file)
         data[0]['params']['lidar_pose'] = tfm_to_pose(transformation_matrix)
         
         ######################## Single View GT ########################
@@ -376,7 +376,6 @@ class IntermediateFusionDatasetDAIR(Dataset):
 
         for cav_id in cav_id_list:
             selected_cav_base = base_data_dict[cav_id]
-
             ego_keypoints = None
             ego_allpoints = None
             if self.select_keypoint:
@@ -392,7 +391,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
                 ego_keypoints, 
                 ego_allpoints,
                 idx)
-                
+            
             object_stack.append(selected_cav_processed['object_bbx_center'])
             object_id_stack += selected_cav_processed['object_ids']
 

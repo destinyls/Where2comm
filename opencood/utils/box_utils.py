@@ -8,7 +8,7 @@
 Bounding box related utility functions
 """
 import sys
-
+import math
 import numpy as np
 
 import torch
@@ -149,7 +149,45 @@ def boxes2d_to_corners2d(boxes2d, order="lwh"):
     corners2d = corners2d.view(*(input_shape[:-1]), 4, 2)
     return corners2d
 
+def get_3d_8points(obj_size, yaw_lidar, center_lidar):
+        # yaw_lidar = -yaw_lidar
+        liadr_r = np.matrix(
+            [
+                [math.cos(yaw_lidar), -math.sin(yaw_lidar), 0],
+                [math.sin(yaw_lidar), math.cos(yaw_lidar), 0],
+                [0, 0, 1],
+            ]
+        )
+        l, w, h = obj_size
+        corners_3d_lidar = np.matrix(
+            [
+                [l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2],
+                [w / 2, -w / 2, -w / 2, w / 2, w / 2, -w / 2, -w / 2, w / 2],
+                [0, 0, 0, 0, h, h, h, h],
+            ]
+        )
+        corners_3d_lidar = liadr_r * corners_3d_lidar + np.matrix(center_lidar).T
+        return corners_3d_lidar.T.A
 
+def boxes_to_corners_3d_baseline(boxes3d, order):
+    boxes3d, is_numpy = common_utils.check_numpy_to_torch(boxes3d)
+    if order == 'hwl':
+        boxes3d = boxes3d[:, [0, 1, 2, 5, 4, 3, 6]]
+    boxes3d = boxes3d.cpu().numpy()
+    corners3d_list = []
+    for idx in range(boxes3d.shape[0]):
+        box3d = boxes3d[idx]
+        x, y, z, l, w, h, yaw = box3d
+        obj_size, yaw_lidar, center_lidar = [l, w, h], yaw, [x, y, z - h/2]
+        corners3d = get_3d_8points(obj_size, yaw_lidar, center_lidar)
+        corners3d_list.append(corners3d[np.newaxis, :, :])
+    if len(corners3d_list) > 0:
+        corners3d_array = np.concatenate(corners3d_list, axis=0)
+        corners3d_tensor = torch.tensor(corners3d_array).cuda()
+    else:
+        corners3d_tensor = torch.ones(0, 8, 3).cuda()
+    return corners3d_tensor
+    
 def boxes_to_corners_3d(boxes3d, order):
     """
         4 -------- 5

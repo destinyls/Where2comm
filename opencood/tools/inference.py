@@ -7,6 +7,7 @@ import argparse
 import os
 import time
 
+
 import torch
 from torch.utils.data import DataLoader
 
@@ -14,6 +15,7 @@ import opencood.hypes_yaml.yaml_utils as yaml_utils
 from opencood.tools import train_utils, inference_utils
 from opencood.data_utils.datasets import build_dataset
 from opencood.utils import eval_utils
+from opencood.utils.eval_utils2 import Evaluator 
 from opencood.visualization import simple_vis
 from tqdm import tqdm
 
@@ -35,6 +37,9 @@ def test_parser():
                         help='Communication confidence threshold')
     opt = parser.parse_args()
     return opt
+
+def result2dict(box_tensor, score_tensor):
+    
 
 
 def main():
@@ -86,6 +91,7 @@ def main():
     result_stat = {0.3: {'tp': [], 'fp': [], 'gt': 0},
                    0.5: {'tp': [], 'fp': [], 'gt': 0},
                    0.7: {'tp': [], 'fp': [], 'gt': 0}}
+    evaluator = Evaluator("car")
 
     total_comm_rates = []
     # total_box = []
@@ -146,7 +152,6 @@ def main():
                 npy_save_path = os.path.join(opt.model_dir, 'npy')
                 if not os.path.exists(npy_save_path):
                     os.makedirs(npy_save_path)
-                print(pred_box_tensor.shape, pred_score.shape)
                 inference_utils.save_prediction_gt(pred_box_tensor,
                                                    pred_score,
                                                    gt_box_tensor,
@@ -156,7 +161,6 @@ def main():
                                                    npy_save_path)
 
             if opt.save_vis_n and opt.save_vis_n >i:
-
                 vis_save_path = os.path.join(opt.model_dir, 'vis_3d')
                 if not os.path.exists(vis_save_path):
                     os.makedirs(vis_save_path)
