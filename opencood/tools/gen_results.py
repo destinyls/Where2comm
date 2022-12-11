@@ -16,8 +16,11 @@ from opencood.utils.pcd_utils import \
     mask_points_by_range, mask_ego_points, shuffle_points, \
     downsample_lidar_minimum
 
+perm_pred = [0, 4, 7, 3, 1, 5, 6, 2]
+perm_label = [3, 2, 1, 0, 7, 6, 5, 4]
+
 calib_path = "/root/Dataset/DAIR-V2X-C/cooperative-vehicle-infrastructure/testing/vehicle-side/calib/lidar_to_novatel"
-npy_path = "/root/Where2comm/opencood/logs/dair_where2comm_attn_multiscale_resnet_2022_12_07_10_16_42/npy"
+npy_path = "/root/Where2comm/opencood/logs/dair_where2comm_max_multiscale_resnet_2022_12_10_02_43_15/npy"
 test_path = "/root/test"
 test_json = "/root/Dataset/DAIR-V2X-C/cooperative-vehicle-infrastructure/testing/test.json"
 
@@ -90,6 +93,7 @@ def calib_json2RT(calib_json):
     return RT
 
 if __name__ == "__main__":
+    '''
     transformation_matrix = veh_side_rot_and_trans_to_trasnformation_matrix(load_json(lidar_to_novatel), load_json(novatel_to_world))
     lidar_pose = tfm_to_pose(transformation_matrix)
     lidar2world = x_to_world(lidar_pose) # T_world_lidar
@@ -102,7 +106,7 @@ if __name__ == "__main__":
     pred_box3d = np.load(npy_pred_path)
     pred_box3d_tensor = torch.tensor(pred_box3d).cuda()
     print(pred_box3d_tensor.shape)
-
+    
     with open(pkl_pred_path, 'rb') as f:
         pred_box3d_baseline = pickle.load(f)
     print(pred_box3d_baseline.keys(), type(pred_box3d_baseline["boxes_3d"]), type(pred_box3d_baseline["labels_3d"]))
@@ -127,15 +131,11 @@ if __name__ == "__main__":
                         method='bev',
                         left_hand=False,
                         vis_pred_box=True)
-                
+    '''     
     with open(test_json,'r',encoding='utf8') as fp:
         test_list = json.load(fp)
     print(len(test_list))
     for frame_id in test_list:
-        '''
-        if frame_id not in ["001482"]:
-            continue
-        '''
         calib_file = os.path.join(calib_path, frame_id + ".json")
         with open(calib_file,'r',encoding='utf8') as fp:
             calib = json.load(fp)
@@ -157,6 +157,7 @@ if __name__ == "__main__":
             boxes_3d, scores_3d, labels_3d = [], [], []
             for i in range(pred_box3d.shape[0]):
                 corner3d_ego = pred_box3d[i].astype(np.float16)
+                corner3d_ego = corner3d_ego[perm_label][perm_pred]
                 score = pred_score[i]
                 boxes_3d.append(corner3d_ego[np.newaxis, :, :])
                 scores_3d.append(round(float(score), 2))

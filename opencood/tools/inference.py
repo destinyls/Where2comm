@@ -6,6 +6,7 @@
 import argparse
 import os
 import time
+import pickle
 
 import numpy as np
 
@@ -18,6 +19,7 @@ from opencood.data_utils.datasets import build_dataset
 from opencood.utils import eval_utils
 from opencood.utils.eval_utils2 import Evaluator 
 from opencood.visualization import simple_vis
+from opencood.data_utils.datasets.intermediate_fusion_dataset_dair import load_json
 from tqdm import tqdm
 
 def test_parser():
@@ -39,12 +41,33 @@ def test_parser():
     opt = parser.parse_args()
     return opt
 
+def baseline_pkl2dict(frame_id):
+    baseline_result_path = "/root/result"
+    pkl_file = os.path.join(baseline_result_path, "{:06}".format(frame_id) + ".pkl")
+    if os.path.exists(pkl_file):
+        with open(pkl_file, 'rb') as f:
+            results = pickle.load(f)
+        boxes_3d, labels_3d, scores_3d = results["boxes_3d"], results["labels_3d"], results["scores_3d"]
+        gt_boxes_3d = results["label"]
+        gt_labels_3d, gt_scores_3d = 2 * np.ones((gt_boxes_3d.shape[0]), dtype=np.int), np.ones((gt_boxes_3d.shape[0]), dtype=np.float)
+    else:
+        boxes_3d, labels_3d, scores_3d  = np.ones((0, 8, 3)), np.zeros((0)), np.zeros((0))
+        gt_boxes_3d, gt_labels_3d, gt_scores_3d  = np.ones((0, 8, 3)), np.zeros((0)), np.zeros((0))
+    pred_dict = {"boxes_3d": boxes_3d, "scores_3d": scores_3d, "labels_3d": labels_3d}
+    gt_dict = {"boxes_3d": gt_boxes_3d, "scores_3d": gt_scores_3d, "labels_3d": gt_labels_3d}
+    return pred_dict, gt_dict
+
+
 def result2dict(box3d_tensor, score_tensor):
+    perm_pred = [0, 4, 7, 3, 1, 5, 6, 2]
+    perm_label = [3, 2, 1, 0, 7, 6, 5, 4]
     boxes_3d, scores_3d, labels_3d = [], [], []
     box3d = box3d_tensor.cpu().numpy()
     score = score_tensor.cpu().numpy() if score_tensor is not None else None
     for i in range(box3d.shape[0]):
         b3d = box3d[i,:,:]
+        if score_tensor is not None:
+            b3d = b3d[perm_label][perm_pred]
         sc = score[i] if score is not None else 1.0
         boxes_3d.append(b3d[np.newaxis, :, :])
         scores_3d.append(sc)
@@ -117,6 +140,7 @@ def main():
     for i, batch_data in tqdm(enumerate(data_loader)):
         with torch.no_grad():
             batch_data = train_utils.to_device(batch_data, device)
+            frame_id = int(batch_data["ego"]["sample_idx"])
             if opt.fusion_method == 'late':
                 pred_box_tensor, pred_score, gt_box_tensor = \
                     inference_utils.inference_late_fusion(batch_data,
@@ -151,25 +175,25 @@ def main():
                 continue
             
             if not test_inference:
-                evaluator.add_frame(result2dict(pred_box_tensor, pred_score),
-                                    result2dict(pred_box_tensor, pred_score))
-
+                # pred_dict, gt_dict = baseline_pkl2dict(frame_id)
+                # pred_dict = result2dict(pred_box_tensor, pred_score)
+                # gt_dict = result2dict(pred_box_tensor, None)
+                # evaluator.add_frame(pred_dict, gt_dict)
                 eval_utils.caluclate_tp_fp(pred_box_tensor,
                                         pred_score,
-                                        pred_box_tensor,
+                                        gt_box_tensor,
                                         result_stat,
                                         0.3)
                 eval_utils.caluclate_tp_fp(pred_box_tensor,
                                         pred_score,
-                                        pred_box_tensor,
+                                        gt_box_tensor,
                                         result_stat,
                                         0.5)
                 eval_utils.caluclate_tp_fp(pred_box_tensor,
                                         pred_score,
-                                        pred_box_tensor,
+                                        gt_box_tensor,
                                         result_stat,
                                         0.7)
-            frame_id = int(batch_data["ego"]["sample_idx"])
             if opt.save_npy:
                 npy_save_path = os.path.join(opt.model_dir, 'npy')
                 if not os.path.exists(npy_save_path):
@@ -223,8 +247,8 @@ def main():
         f.write(msg)
         print(msg)
 
-    evaluator.print_ap("3d")
-    evaluator.print_ap("bev")
+    # evaluator.print_ap("3d")
+    # evaluator.print_ap("bev")
 
 if __name__ == '__main__':
     main()
