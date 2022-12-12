@@ -8,6 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
+import torch.distributed as dist
 
 class WeightedSmoothL1Loss(nn.Module):
     """
@@ -211,6 +212,30 @@ class PointPillarLoss(nn.Module):
         boxes2 = torch.cat([boxes2[..., :dim], rad_tg_encoding,
                             boxes2[..., dim + 1:]], dim=-1)
         return boxes1, boxes2
+    
+    def reduce_loss_dict(self, loss_dict):
+        """
+        Reduce the loss dictionary from all processes so that process with rank
+        0 has the averaged results. Returns a dict with the same fields as
+        loss_dict, after reduction.
+        """
+        world_size = dist.get_world_size()
+        if world_size < 2:
+            return loss_dict
+        with torch.no_grad():
+            loss_names = []
+            all_losses = []
+            for k in sorted(loss_dict.keys()):
+                loss_names.append(k)
+                all_losses.append(loss_dict[k])
+            all_losses = torch.stack(all_losses, dim=0)
+            dist.reduce(all_losses, dst=0)
+            if dist.get_rank() == 0:
+                # only main process gets accumulated, so only divide by
+                # world_size in this case
+                all_losses /= world_size
+            reduced_losses = {k: v for k, v in zip(loss_names, all_losses)}
+        return reduced_losses
 
 
     def logging(self, epoch, batch_id, batch_len, writer = None):
@@ -228,16 +253,16 @@ class PointPillarLoss(nn.Module):
         writer : SummaryWriter
             Used to visualize on tensorboard
         """
-        total_loss = [v.item() for k, v in self.loss_dict.items() if 'total_loss' in k]
+        
+        loss_dict_reduced = self.reduce_loss_dict(self.loss_dict)        
+        total_loss = [v.item() for k, v in loss_dict_reduced.items() if 'total_loss' in k]
         if len(total_loss) > 1:
             total_loss = sum(total_loss)
         else:
             total_loss = total_loss[0]
-        reg_loss = self.loss_dict['reg_loss']
-        conf_loss = self.loss_dict['conf_loss']
 
         print_msg = "[epoch {}][{}/{}], || Loss: {:.2f} ||".format(epoch, batch_id + 1, batch_len, total_loss)
-        for k, v in self.loss_dict.items():
+        for k, v in loss_dict_reduced.items():
             print_msg += '{}: {:.2f} | '.format(k.replace('_loss', '').replace('_single', ''), v.item())
 
         # print_msg = ("[epoch %d][%d/%d], || Loss: %.4f || Conf Loss: %.4f"
@@ -246,7 +271,7 @@ class PointPillarLoss(nn.Module):
         #                 total_loss.item(), conf_loss.item(), reg_loss.item()))
         
         if self.use_dir:
-            dir_loss = self.loss_dict['dir_loss']
+            dir_loss = loss_dict_reduced['dir_loss']
             print_msg += " || Dir Loss: %.4f" % dir_loss.item()
 
         print(print_msg)

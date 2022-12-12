@@ -14,6 +14,8 @@ import shutil
 import torch
 import torch.optim as optim
 
+import opencood.utils.misc as misc
+
 def backup_script(full_path, folders_to_save=["models", "data_utils", "utils", "loss"]):
     target_folder = os.path.join(full_path, 'scripts')
     if not os.path.exists(target_folder):
@@ -24,7 +26,7 @@ def backup_script(full_path, folders_to_save=["models", "data_utils", "utils", "
     for folder_name in folders_to_save:
         ttarget_folder = os.path.join(target_folder, folder_name)
         source_folder = os.path.join(current_path, f'../{folder_name}')
-        shutil.copytree(source_folder, ttarget_folder)
+        # shutil.copytree(source_folder, ttarget_folder)
 
 def load_saved_model(saved_path, model, epoch=None):
     """
@@ -120,13 +122,14 @@ def setup_train(hypes):
     full_path = os.path.join(current_path, folder_name)
 
     if not os.path.exists(full_path):
-        os.makedirs(full_path)
+        os.makedirs(full_path, exist_ok=True)
+        
         # save the yaml file
         save_name = os.path.join(full_path, 'config.yaml')
         with open(save_name, 'w') as outfile:
             yaml.dump(hypes, outfile)
-
-    backup_script(full_path)
+    if misc.is_main_process():
+        backup_script(full_path)
 
     return full_path
 
