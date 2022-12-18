@@ -5,11 +5,18 @@
 
 import argparse
 import os
+import random
+import warnings
+
 import statistics
 
 import torch
 from torch.utils.data import DataLoader, Subset
 from tensorboardX import SummaryWriter
+
+import torch.distributed as dist
+import torch.multiprocessing as mp
+import torch.backends.cudnn as cudnn
 
 import opencood.hypes_yaml.yaml_utils as yaml_utils
 from opencood.tools import train_utils
@@ -26,42 +33,60 @@ def train_parser():
                         help='Continued training path')
     parser.add_argument('--fusion_method', '-f', default="intermediate",
                         help='passed to inference.')
+    parser.add_argument('--local_rank', default=-1, type=int,
+                        help='node rank for distributed training')
+    parser.add_argument('--seed', default=None, type=int,
+                        help='seed for initializing training. ')
     opt = parser.parse_args()
     return opt
 
-
-def main():
-    opt = train_parser()
+def main_worker(local_rank, nprocs, opt):
+    dist.init_process_group(backend='nccl')
     hypes = yaml_utils.load_yaml(opt.hypes_yaml, opt)
+    
+    print('Creating Model')
+    model = train_utils.create_model(hypes)
+    torch.cuda.set_device(local_rank)
+    model.cuda(local_rank)
+    cudnn.benchmark = True
 
     print('Dataset Building')
     opencood_train_dataset = build_dataset(hypes, visualize=False, train=True)
     opencood_validate_dataset = build_dataset(hypes,
                                               visualize=False,
                                               train=False)
-
+    
+    bs = int(hypes['train_params']['batch_size'] / 1)
+    distributed = nprocs > 1
+    train_sampler, val_sampler = None, None
+    if distributed:
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[local_rank])
+        train_sampler = torch.utils.data.distributed.DistributedSampler(opencood_train_dataset)
+        val_sampler = torch.utils.data.distributed.DistributedSampler(opencood_validate_dataset)
+        
     train_loader = DataLoader(opencood_train_dataset,
-                              batch_size=hypes['train_params']['batch_size'],
+                              batch_size=bs,
                               num_workers=8,
                               collate_fn=opencood_train_dataset.collate_batch_train,
-                              shuffle=True,
+                              # shuffle=True,
                               pin_memory=True,
-                              drop_last=True)
+                              drop_last=True,
+                              sampler=train_sampler)
     val_loader = DataLoader(opencood_validate_dataset,
-                            batch_size=hypes['train_params']['batch_size'],
+                            batch_size=bs,
                             num_workers=8,
                             collate_fn=opencood_train_dataset.collate_batch_train,
-                            shuffle=True,
+                            # shuffle=True,
                             pin_memory=True,
-                            drop_last=True)
-
-    print('Creating Model')
-    model = train_utils.create_model(hypes)
+                            drop_last=True,
+                            sampler=val_sampler)        
+    
+    '''
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
     # we assume gpu is necessary
     if torch.cuda.is_available():
         model.to(device)
+    '''
 
     # define the loss
     criterion = train_utils.create_loss(hypes)
@@ -79,7 +104,7 @@ def main():
         init_epoch = 0
         # if we train the model from scratch, we need to create a folder
         # to save the model,
-        saved_path = train_utils.setup_train(hypes)
+        saved_path = train_utils.setup_train(hypes, local_rank)
         # lr scheduler setup
         scheduler = train_utils.setup_lr_schedular(hypes, optimizer)
 
@@ -91,6 +116,9 @@ def main():
     # used to help schedule learning rate
     with_round_loss = False
     for epoch in range(init_epoch, max(epoches, init_epoch)):
+        if distributed:
+            train_sampler.set_epoch(epoch)
+            val_sampler.set_epoch(epoch)
         for param_group in optimizer.param_groups:
             print('learning rate %f' % param_group["lr"])
         for i, batch_data in enumerate(train_loader):
@@ -100,7 +128,7 @@ def main():
             model.train()
             model.zero_grad()
             optimizer.zero_grad()
-            batch_data = train_utils.to_device(batch_data, device)
+            batch_data = train_utils.to_local_rank(batch_data, local_rank)
             # case1 : late fusion train --> only ego needed,
             # and ego is (random) selected
             # case2 : early fusion train --> all data projected to ego
@@ -124,7 +152,9 @@ def main():
                             for round_id in range(1, comm['round']):
                                 round_loss_v += criterion(output_dict, batch_data['ego']['label_dict'], prefix='_v{}'.format(round_id))
 
-            criterion.logging(epoch, i, len(train_loader), writer)
+            torch.distributed.barrier()
+            if local_rank == 0:
+                criterion.logging(epoch, i, len(train_loader), writer, nprocs)
 
             if len(output_dict) > 2:
                 final_loss += single_loss_v + single_loss_i
@@ -148,7 +178,7 @@ def main():
                     optimizer.zero_grad()
                     model.eval()
 
-                    batch_data = train_utils.to_device(batch_data, device)
+                    batch_data = train_utils.to_local_rank(batch_data, local_rank)
                     batch_data['ego']['epoch'] = epoch
                     ouput_dict = model(batch_data['ego'])
 
@@ -173,7 +203,7 @@ def main():
                                                               valid_ave_loss))
             writer.add_scalar('Validate_Loss', valid_ave_loss, epoch)
 
-        if epoch % hypes['train_params']['save_freq'] == 0:
+        if epoch % hypes['train_params']['save_freq'] == 0 and local_rank == 0:
             torch.save(model.state_dict(),
                        os.path.join(saved_path,
                                     'net_epoch%d.pth' % (epoch + 1)))
@@ -189,4 +219,18 @@ def main():
         os.system(cmd)
 
 if __name__ == '__main__':
-    main()
+    opt = train_parser()
+    
+    if opt.seed is not None:
+        random.seed(opt.seed)
+        torch.manual_seed(opt.seed)
+        cudnn.deterministic = True
+        warnings.warn('You have chosen to seed training. '
+                      'This will turn on the CUDNN deterministic setting, '
+                      'which can slow down your training considerably! '
+                      'You may see unexpected behavior when restarting '
+                      'from checkpoints.')
+    
+    nprocs = torch.cuda.device_count()
+    print("opt.local_rank: ", opt.local_rank)
+    main_worker(opt.local_rank, nprocs, opt)

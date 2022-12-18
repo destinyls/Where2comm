@@ -99,7 +99,7 @@ def load_saved_model(saved_path, model, epoch=None):
 
 
 
-def setup_train(hypes):
+def setup_train(hypes, local_rank=0):
     """
     Create folder for saved model based on current timestep and model name
 
@@ -120,13 +120,14 @@ def setup_train(hypes):
     full_path = os.path.join(current_path, folder_name)
 
     if not os.path.exists(full_path):
-        os.makedirs(full_path)
+        os.makedirs(full_path, exist_ok=True)
         # save the yaml file
         save_name = os.path.join(full_path, 'config.yaml')
         with open(save_name, 'w') as outfile:
             yaml.dump(hypes, outfile)
 
-    backup_script(full_path)
+    if local_rank == 0:
+        backup_script(full_path)
 
     return full_path
 
@@ -277,3 +278,14 @@ def to_device(inputs, device):
                 or isinstance(inputs, str):
             return inputs
         return inputs.to(device)
+    
+def to_local_rank(inputs, local_rank):
+    if isinstance(inputs, list):
+        return [to_local_rank(x, local_rank) for x in inputs]
+    elif isinstance(inputs, dict):
+        return {k: to_local_rank(v, local_rank) for k, v in inputs.items()}
+    else:
+        if isinstance(inputs, int) or isinstance(inputs, float) \
+                or isinstance(inputs, str):
+            return inputs
+        return inputs.cuda(local_rank, non_blocking=True)

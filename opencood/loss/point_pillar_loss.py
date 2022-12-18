@@ -213,7 +213,7 @@ class PointPillarLoss(nn.Module):
         return boxes1, boxes2
 
 
-    def logging(self, epoch, batch_id, batch_len, writer = None):
+    def logging(self, epoch, batch_id, batch_len, writer = None, nprocs = 1):
         """
         Print out  the loss function for current iteration.
 
@@ -228,7 +228,7 @@ class PointPillarLoss(nn.Module):
         writer : SummaryWriter
             Used to visualize on tensorboard
         """
-        total_loss = [v.item() for k, v in self.loss_dict.items() if 'total_loss' in k]
+        total_loss = [v.item() / nprocs for k, v in self.loss_dict.items() if 'total_loss' in k]
         if len(total_loss) > 1:
             total_loss = sum(total_loss)
         else:
@@ -238,7 +238,7 @@ class PointPillarLoss(nn.Module):
 
         print_msg = "[epoch {}][{}/{}], || Loss: {:.2f} ||".format(epoch, batch_id + 1, batch_len, total_loss)
         for k, v in self.loss_dict.items():
-            print_msg += '{}: {:.2f} | '.format(k.replace('_loss', '').replace('_single', ''), v.item())
+            print_msg += '{}: {:.2f} | '.format(k.replace('_loss', '').replace('_single', ''), v.item() / nprocs)
 
         # print_msg = ("[epoch %d][%d/%d], || Loss: %.4f || Conf Loss: %.4f"
         #             " || Loc Loss: %.4f" % (
@@ -247,18 +247,18 @@ class PointPillarLoss(nn.Module):
         
         if self.use_dir:
             dir_loss = self.loss_dict['dir_loss']
-            print_msg += " || Dir Loss: %.4f" % dir_loss.item()
+            print_msg += " || Dir Loss: %.4f" % (dir_loss.item() / nprocs)
 
         print(print_msg)
 
         if not writer is None:
             for k, v in self.loss_dict.items():
-                writer.add_scalar(k, v.item(), epoch*batch_len + batch_id)
+                writer.add_scalar(k, v.item() / nprocs, epoch*batch_len + batch_id)
             # writer.add_scalar('Regression_loss', reg_loss.item(),
             #                 epoch*batch_len + batch_id)
             # writer.add_scalar('Confidence_loss', conf_loss.item(),
             #                 epoch*batch_len + batch_id)
                             
             if self.use_dir:
-                writer.add_scalar('dir_loss', dir_loss.item(),
+                writer.add_scalar('dir_loss', dir_loss.item() / nprocs,
                             epoch*batch_len + batch_id)
