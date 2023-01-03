@@ -213,7 +213,7 @@ class PointPillarLoss(nn.Module):
         return boxes1, boxes2
 
 
-    def logging(self, epoch, batch_id, batch_len, writer = None, nprocs = 1):
+    def logging(self, epoch, batch_id, batch_len, eta_string, writer = None, nprocs = 1):
         """
         Print out  the loss function for current iteration.
 
@@ -239,7 +239,7 @@ class PointPillarLoss(nn.Module):
         print_msg = "[epoch {}][{}/{}], || Loss: {:.2f} ||".format(epoch, batch_id + 1, batch_len, total_loss)
         for k, v in self.loss_dict.items():
             print_msg += '{}: {:.2f} | '.format(k.replace('_loss', '').replace('_single', ''), v.item() / nprocs)
-
+        print_msg += ("eta: " + eta_string)
         # print_msg = ("[epoch %d][%d/%d], || Loss: %.4f || Conf Loss: %.4f"
         #             " || Loc Loss: %.4f" % (
         #                 epoch, batch_id + 1, batch_len,

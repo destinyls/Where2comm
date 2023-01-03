@@ -5,6 +5,8 @@
 
 import argparse
 import os
+import time
+import datetime
 import random
 import warnings
 
@@ -60,7 +62,7 @@ def main_worker(local_rank, nprocs, opt):
     distributed = nprocs > 1
     train_sampler, val_sampler = None, None
     if distributed:
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[local_rank])
+        model = torch.nn.parallel.DistributedDataParallel(model,  device_ids=[local_rank])
         train_sampler = torch.utils.data.distributed.DistributedSampler(opencood_train_dataset)
         val_sampler = torch.utils.data.distributed.DistributedSampler(opencood_validate_dataset)
         
@@ -90,15 +92,13 @@ def main_worker(local_rank, nprocs, opt):
 
     # define the loss
     criterion = train_utils.create_loss(hypes)
-
     # optimizer setup
     optimizer = train_utils.setup_optimizer(hypes, model)
-
 
     # if we want to train from last checkpoint.
     if opt.model_dir:
         saved_path = opt.model_dir
-        init_epoch, model = train_utils.load_saved_model(saved_path, model)
+        init_epoch, model = train_utils.load_saved_model(saved_path, model.module if distributed else model)
         scheduler = train_utils.setup_lr_schedular(hypes, optimizer, init_epoch=init_epoch)
     else:
         init_epoch = 0
@@ -115,6 +115,7 @@ def main_worker(local_rank, nprocs, opt):
     epoches = hypes['train_params']['epoches']
     # used to help schedule learning rate
     with_round_loss = False
+    mean_batch_time = 0.0
     for epoch in range(init_epoch, max(epoches, init_epoch)):
         if distributed:
             train_sampler.set_epoch(epoch)
@@ -122,6 +123,7 @@ def main_worker(local_rank, nprocs, opt):
         for param_group in optimizer.param_groups:
             print('learning rate %f' % param_group["lr"])
         for i, batch_data in enumerate(train_loader):
+            start_batch_time = time.time()
             if batch_data is None:
                 continue
             # the model will be evaluation mode during validation
@@ -154,7 +156,11 @@ def main_worker(local_rank, nprocs, opt):
 
             torch.distributed.barrier()
             if local_rank == 0:
-                criterion.logging(epoch, i, len(train_loader), writer, nprocs)
+                batch_time = time.time() - start_batch_time
+                mean_batch_time = ((len(train_loader) * epoch + i) * mean_batch_time + batch_time) / (len(train_loader) * epoch + i + 1)
+                eta_seconds = mean_batch_time * (len(train_loader) * epoches - (len(train_loader) * epoch + i))
+                eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
+                criterion.logging(epoch, i, len(train_loader), eta_string, writer, nprocs)
 
             if len(output_dict) > 2:
                 final_loss += single_loss_v + single_loss_i

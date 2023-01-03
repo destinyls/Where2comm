@@ -2,7 +2,6 @@
 # Author: Hao Xiang <haxiang@g.ucla.edu>, Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
-
 from numpy import record
 import torch.nn as nn
 
@@ -13,14 +12,15 @@ from opencood.models.sub_modules.base_bev_backbone_resnet import ResNetBEVBackbo
 from opencood.models.sub_modules.downsample_conv import DownsampleConv
 from opencood.models.sub_modules.naive_compress import NaiveCompressor
 from opencood.models.sub_modules.dcn_net import DCNNet
-# from opencood.models.fuse_modules.where2comm import Where2comm
 from opencood.models.fuse_modules.where2comm_attn import Where2comm
 import torch
+import cv2
+import time
 
-class PointPillarWhere2comm(nn.Module):
+
+class PointPillar(nn.Module):
     def __init__(self, args):
-        super(PointPillarWhere2comm, self).__init__()
-
+        super(PointPillar, self).__init__()
         # PIllar VFE
         self.pillar_vfe = PillarVFE(args['pillar_vfe'],
                                     num_point_features=4,
@@ -31,82 +31,34 @@ class PointPillarWhere2comm(nn.Module):
             self.backbone = ResNetBEVBackbone(args['base_bev_backbone'], 64)
         else:
             self.backbone = BaseBEVBackbone(args['base_bev_backbone'], 64)
-
         # used to downsample the feature map for efficient computation
         self.shrink_flag = False
         if 'shrink_header' in args:
             self.shrink_flag = True
             self.shrink_conv = DownsampleConv(args['shrink_header'])
         self.compression = False
-
         if args['compression'] > 0:
             self.compression = True
             self.naive_compressor = NaiveCompressor(256, args['compression'])
-
         self.dcn = False
         if 'dcn' in args:
             self.dcn = True
             self.dcn_net = DCNNet(args['dcn'])
-
-        # self.fusion_net = TransformerFusion(args['fusion_args'])
-        self.fusion_net = Where2comm(args['fusion_args'])
-        self.multi_scale = args['fusion_args']['multi_scale']
-
         self.cls_head = nn.Conv2d(128 * 2, args['anchor_number'],
                                   kernel_size=1)
         self.reg_head = nn.Conv2d(128 * 2, 7 * args['anchor_number'],
                                   kernel_size=1)
         if args['backbone_fix']:
             self.backbone_fix()
-
-    def backbone_fix(self):
-        """
-        Fix the parameters of backbone during finetune on timedelay。
-        """
-        for p in self.pillar_vfe.parameters():
-            p.requires_grad = False
-
-        for p in self.scatter.parameters():
-            p.requires_grad = False
-
-        for p in self.backbone.parameters():
-            p.requires_grad = False
-
-        if self.compression:
-            for p in self.naive_compressor.parameters():
-                p.requires_grad = False
-        if self.shrink_flag:
-            for p in self.shrink_conv.parameters():
-                p.requires_grad = False
-
-        for p in self.cls_head.parameters():
-            p.requires_grad = False
-        for p in self.reg_head.parameters():
-            p.requires_grad = False
-    
-    def regroup(self, x, record_len):
-        cum_sum_len = torch.cumsum(record_len, dim=0)
-        split_x = torch.tensor_split(x, cum_sum_len[:-1].cpu())
-        return split_x
-
-    def forward(self, data_dict):
-        voxel_features = data_dict['processed_lidar']['voxel_features']
-        voxel_coords = data_dict['processed_lidar']['voxel_coords']
-        voxel_num_points = data_dict['processed_lidar']['voxel_num_points']
-        record_len = data_dict['record_len']
-
-        pairwise_t_matrix = data_dict['pairwise_t_matrix']
-
-        batch_dict = {'voxel_features': voxel_features,
-                      'voxel_coords': voxel_coords,
-                      'voxel_num_points': voxel_num_points,
-                      'record_len': record_len}
+            
+    def forward(self, batch_dict):
         # n, 4 -> n, c
         batch_dict = self.pillar_vfe(batch_dict)
         # n, c -> N, C, H, W
         batch_dict = self.scatter(batch_dict)
         batch_dict = self.backbone(batch_dict)
         # N, C, H', W'. [N, 384, 100, 352]
+        spatial_features = batch_dict['spatial_features']
         spatial_features_2d = batch_dict['spatial_features_2d']
         
         # downsample feature to reduce memory
@@ -121,55 +73,136 @@ class PointPillarWhere2comm(nn.Module):
         # spatial_features_2d is [sum(cav_num), 256, 50, 176]
         # output only contains ego
         # [B, 256, 50, 176]
-        psm_single = self.cls_head(spatial_features_2d)
-        rm_single = self.reg_head(spatial_features_2d)
+        psm = self.cls_head(spatial_features_2d)
+        rm = self.reg_head(spatial_features_2d)
+        return psm, rm, spatial_features, spatial_features_2d
+    
+    def backbone_fix(self):
+        """
+        Fix the parameters of backbone during finetune on timedelay。
+        """
+        for p in self.pillar_vfe.parameters():
+            p.requires_grad = False
+        for p in self.scatter.parameters():
+            p.requires_grad = False
+        for p in self.backbone.parameters():
+            p.requires_grad = False
+        if self.compression:
+            for p in self.naive_compressor.parameters():
+                p.requires_grad = False
+        if self.shrink_flag:
+            for p in self.shrink_conv.parameters():
+                p.requires_grad = False
+        for p in self.cls_head.parameters():
+            p.requires_grad = False
+        for p in self.reg_head.parameters():
+            p.requires_grad = False
 
-        # print('spatial_features_2d: ', spatial_features_2d.shape)
+class PointPillarWhere2comm(nn.Module):
+    def __init__(self, args):
+        super(PointPillarWhere2comm, self).__init__()
+        # used to downsample the feature map for efficient computation
+        self.shrink_flag = False
+        if 'shrink_header' in args:
+            self.shrink_flag = True
+        self.compression = False
+        if args['compression'] > 0:
+            self.compression = True
+        self.dcn = False
+        if 'dcn' in args:
+            self.dcn = True
+
+        self.model_vehicle = PointPillar(args)
+        self.model_infra = PointPillar(args)
+        # self.fusion_net = TransformerFusion(args['fusion_args'])
+        self.fusion_net = Where2comm(args['fusion_args'])
+        self.multi_scale = args['fusion_args']['multi_scale']
+        self.cls_head = nn.Conv2d(128 * 2, args['anchor_number'], kernel_size=1)
+        self.reg_head = nn.Conv2d(128 * 2, 7 * args['anchor_number'], kernel_size=1)
+
+    def split_data(self, voxel_features, voxel_coords, voxel_num_points, record_len):
+        batch_size = voxel_coords[:, 0].max().int().item() + 1
+        voxel_features_v, voxel_coords_v, num_points_v = [], [], []
+        voxel_features_i, voxel_coords_i, num_points_i = [], [], []        
+        for batch_idx in range(batch_size):
+            batch_mask = voxel_coords[:, 0] == batch_idx
+            voxel_coords[batch_mask, 0] = batch_idx // 2
+            if batch_idx % 2 == 0:
+                voxel_features_v.append(voxel_features[batch_mask, :])
+                voxel_coords_v.append(voxel_coords[batch_mask, :])
+                num_points_v.append(voxel_num_points[batch_mask])
+            else:
+                voxel_features_i.append(voxel_features[batch_mask, :])
+                voxel_coords_i.append(voxel_coords[batch_mask, :])
+                num_points_i.append(voxel_num_points[batch_mask])
+
+        voxel_features_v = torch.cat(voxel_features_v, 0)
+        voxel_coords_v = torch.cat(voxel_coords_v, 0)
+        num_points_v = torch.cat(num_points_v, 0)
+        voxel_features_i = torch.cat(voxel_features_i, 0)
+        voxel_coords_i = torch.cat(voxel_coords_i, 0)
+        num_points_i = torch.cat(num_points_i, 0)
+        
+        batch_dict_v = {'voxel_features': voxel_features_v,
+                        'voxel_coords': voxel_coords_v,
+                        'voxel_num_points': num_points_v,
+                        'record_len': record_len}
+        batch_dict_i = {'voxel_features': voxel_features_i,
+                        'voxel_coords': voxel_coords_i,
+                        'voxel_num_points': num_points_i,
+                        'record_len': record_len}
+        return batch_dict_v, batch_dict_i
+
+    def forward(self, data_dict):
+        voxel_features = data_dict['processed_lidar']['voxel_features']
+        voxel_coords = data_dict['processed_lidar']['voxel_coords']
+        voxel_num_points = data_dict['processed_lidar']['voxel_num_points']
+        record_len = data_dict['record_len']
+        pairwise_t_matrix = data_dict['pairwise_t_matrix']
+
+        batch_dict_v, batch_dict_i = self.split_data(voxel_features, voxel_coords, voxel_num_points, record_len)
+        psm_single_v, rm_single_v, spatial_features_v, spatial_features_2d_v = self.model_vehicle(batch_dict_v)
+        psm_single_i, rm_single_i, spatial_features_i, spatial_features_2d_i= self.model_infra(batch_dict_i)
+        
+        psm_single, spatial_features, spatial_features_2d = [], [], []
+        for i in range(psm_single_v.shape[0]):
+            psm_single.append(psm_single_v[i, :, :, :])
+            psm_single.append(psm_single_i[i, :, :, :])
+        for i in range(spatial_features_v.shape[0]):
+            spatial_features.append(spatial_features_v[i, :, :, :])
+            spatial_features.append(spatial_features_i[i, :, :, :])
+        for i in range(spatial_features_2d_v.shape[0]):
+            spatial_features_2d.append(spatial_features_2d_v[i, :, :, :])
+            spatial_features_2d.append(spatial_features_2d_i[i, :, :, :])
+        psm_single = torch.stack(psm_single, dim=0)
+        spatial_features = torch.stack(spatial_features, dim=0)
+        spatial_features_2d = torch.stack(spatial_features_2d, dim=0)
+        
         if self.multi_scale:
-            fused_feature, communication_rates, result_dict = self.fusion_net(batch_dict['spatial_features'],
+            fused_feature, communication_rates, result_dict = self.fusion_net(spatial_features,
                                             psm_single,
                                             record_len,
                                             pairwise_t_matrix, 
-                                            self.backbone,
-                                            [self.shrink_conv, self.cls_head, self.reg_head])
+                                            self.model_vehicle.backbone,
+                                            [self.model_vehicle.shrink_conv, self.cls_head, self.reg_head])
             # downsample feature to reduce memory
             if self.shrink_flag:
-                fused_feature = self.shrink_conv(fused_feature)
+                fused_feature = self.model_vehicle.shrink_conv(fused_feature)
         else:
             fused_feature, communication_rates, result_dict = self.fusion_net(spatial_features_2d,
                                             psm_single,
                                             record_len,
                                             pairwise_t_matrix)
             
-            
-        # print('fused_feature: ', fused_feature.shape)
         psm = self.cls_head(fused_feature)
         rm = self.reg_head(fused_feature)
-
         output_dict = {'psm': psm,
-                       'rm': rm
-                       }
-        output_dict.update(result_dict)
-        
-        split_psm_single = self.regroup(psm_single, record_len)
-        split_rm_single = self.regroup(rm_single, record_len)
-        psm_single_v = []
-        psm_single_i = []
-        rm_single_v = []
-        rm_single_i = []
-        for b in range(len(split_psm_single)):
-            psm_single_v.append(split_psm_single[b][0:1])
-            psm_single_i.append(split_psm_single[b][1:2])
-            rm_single_v.append(split_rm_single[b][0:1])
-            rm_single_i.append(split_rm_single[b][1:2])
-        psm_single_v = torch.cat(psm_single_v, dim=0)
-        psm_single_i = torch.cat(psm_single_i, dim=0)
-        rm_single_v = torch.cat(rm_single_v, dim=0)
-        rm_single_i = torch.cat(rm_single_i, dim=0)
-        output_dict.update({'psm_single_v': psm_single_v,
+                       'rm': rm,
+                       'psm_single_v': psm_single_v,
                        'psm_single_i': psm_single_i,
                        'rm_single_v': rm_single_v,
                        'rm_single_i': rm_single_i,
                        'comm_rate': communication_rates
-                       })
+                       }
+        output_dict.update(result_dict)
         return output_dict
