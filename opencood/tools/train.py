@@ -2,7 +2,6 @@
 # Author: Runsheng Xu <rxx3386@ucla.edu>, Yue Hu <18671129361@sjtu.edu.cn>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
-
 import argparse
 import os
 import time
@@ -33,8 +32,12 @@ def train_parser():
                         help='data generation yaml file needed ')
     parser.add_argument('--model_dir', default='',
                         help='Continued training path')
+    parser.add_argument('--model_pth', default='',
+                        help='Continued with pretrain model')
     parser.add_argument('--fusion_method', '-f', default="intermediate",
                         help='passed to inference.')
+    parser.add_argument('--pretrain', default=False, type=bool,
+                        help='open pretrain mode.')
     parser.add_argument('--local_rank', default=-1, type=int,
                         help='node rank for distributed training')
     parser.add_argument('--seed', default=None, type=int,
@@ -52,20 +55,34 @@ def main_worker(local_rank, nprocs, opt):
     model.cuda(local_rank)
     cudnn.benchmark = True
 
+    # define the loss
+    criterion = train_utils.create_loss(hypes)
+    # optimizer setup
+    optimizer = train_utils.setup_optimizer(hypes, model)
+
+    # if we want to train from last checkpoint.
+    if opt.model_dir:
+        saved_path = opt.model_dir
+        init_epoch, model = train_utils.load_saved_model(saved_path, model)
+        scheduler = train_utils.setup_lr_schedular(hypes, optimizer, init_epoch=init_epoch)
+    else:
+        init_epoch = 0
+        # if we train the model from scratch, we need to create a folder
+        # to save the model,
+        saved_path = train_utils.setup_train(hypes, local_rank)
+        # lr scheduler setup
+        scheduler = train_utils.setup_lr_schedular(hypes, optimizer)
+
     print('Dataset Building')
     opencood_train_dataset = build_dataset(hypes, visualize=False, train=True)
-    opencood_validate_dataset = build_dataset(hypes,
-                                              visualize=False,
-                                              train=False)
-    
+    opencood_validate_dataset = build_dataset(hypes, visualize=False, train=False)   
     bs = int(hypes['train_params']['batch_size'] / 1)
     distributed = nprocs > 1
     train_sampler, val_sampler = None, None
     if distributed:
-        model = torch.nn.parallel.DistributedDataParallel(model,  device_ids=[local_rank])
+        model = torch.nn.parallel.DistributedDataParallel(model, find_unused_parameters=True, device_ids=[local_rank])
         train_sampler = torch.utils.data.distributed.DistributedSampler(opencood_train_dataset)
-        val_sampler = torch.utils.data.distributed.DistributedSampler(opencood_validate_dataset)
-        
+        val_sampler = torch.utils.data.distributed.DistributedSampler(opencood_validate_dataset) 
     train_loader = DataLoader(opencood_train_dataset,
                               batch_size=bs,
                               num_workers=8,
@@ -81,33 +98,8 @@ def main_worker(local_rank, nprocs, opt):
                             # shuffle=True,
                             pin_memory=True,
                             drop_last=True,
-                            sampler=val_sampler)        
+                            sampler=val_sampler)
     
-    '''
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    # we assume gpu is necessary
-    if torch.cuda.is_available():
-        model.to(device)
-    '''
-
-    # define the loss
-    criterion = train_utils.create_loss(hypes)
-    # optimizer setup
-    optimizer = train_utils.setup_optimizer(hypes, model)
-
-    # if we want to train from last checkpoint.
-    if opt.model_dir:
-        saved_path = opt.model_dir
-        init_epoch, model = train_utils.load_saved_model(saved_path, model.module if distributed else model)
-        scheduler = train_utils.setup_lr_schedular(hypes, optimizer, init_epoch=init_epoch)
-    else:
-        init_epoch = 0
-        # if we train the model from scratch, we need to create a folder
-        # to save the model,
-        saved_path = train_utils.setup_train(hypes, local_rank)
-        # lr scheduler setup
-        scheduler = train_utils.setup_lr_schedular(hypes, optimizer)
-
     # record training
     writer = SummaryWriter(saved_path)
 
@@ -141,11 +133,12 @@ def main_worker(local_rank, nprocs, opt):
             output_dict = model(batch_data['ego'])
             # first argument is always your output dictionary,
             # second argument is always your label dictionary.
-            final_loss = criterion(output_dict, batch_data['ego']['label_dict'])
+            final_loss = criterion(output_dict, batch_data['ego']['label_dict']) if not opt.pretrain else 0
+            # final_loss = 0.0
             if len(output_dict) > 2:
                 single_loss_v = criterion(output_dict, batch_data['ego']['label_dict_single_v'], prefix='_single_v')
                 single_loss_i = criterion(output_dict, batch_data['ego']['label_dict_single_i'], prefix='_single_i')
-                if 'fusion_args' in hypes['model']['args']:
+                if 'fusion_args' in hypes['model']['args'] and not opt.pretrain:
                     if 'communication' in hypes['model']['args']['fusion_args']:
                         comm = hypes['model']['args']['fusion_args']['communication']
                         if ('round' in comm) and comm['round'] > 1:
@@ -175,7 +168,6 @@ def main_worker(local_rank, nprocs, opt):
 
         if epoch % hypes['train_params']['eval_freq'] == 0:
             valid_ave_loss = []
-
             with torch.no_grad():
                 for i, batch_data in enumerate(val_loader):
                     if batch_data is None:
@@ -187,15 +179,14 @@ def main_worker(local_rank, nprocs, opt):
                     batch_data = train_utils.to_local_rank(batch_data, local_rank)
                     batch_data['ego']['epoch'] = epoch
                     ouput_dict = model(batch_data['ego'])
-
-                    final_loss = criterion(ouput_dict,
-                                           batch_data['ego']['label_dict'])
+            
+                    final_loss = criterion(ouput_dict, batch_data['ego']['label_dict'])  if not opt.pretrain else 0
                     if len(output_dict) > 2:
                         single_loss_v = criterion(output_dict, batch_data['ego']['label_dict_single_v'], prefix='_single_v')
                         single_loss_i = criterion(output_dict, batch_data['ego']['label_dict_single_i'], prefix='_single_i')
                         final_loss += single_loss_v + single_loss_i
 
-                        if 'fusion_args' in hypes['model']['args']:
+                        if 'fusion_args' in hypes['model']['args'] and not opt.pretrain:
                             if 'communication' in hypes['model']['args']['fusion_args']:
                                 comm = hypes['model']['args']['fusion_args']['communication']
                                 if ('round' in comm) and comm['round'] > 1:
@@ -226,6 +217,8 @@ def main_worker(local_rank, nprocs, opt):
 
 if __name__ == '__main__':
     opt = train_parser()
+    if "pretrain" in opt.hypes_yaml:
+        opt.pretrain = True
     
     if opt.seed is not None:
         random.seed(opt.seed)

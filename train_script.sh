@@ -1,2 +1,8 @@
-CUDA_VISIBLE_DEVICES=4,5,6 python -m torch.distributed.launch --nproc_per_node=3 opencood/tools/train.py --hypes_yaml opencood/hypes_yaml/dair-v2x/dair_where2comm_max_multiscale_resnet.yaml
- # python opencood/tools/inference.py --model_dir opencood/logs/dair_where2comm_attn_multiscale_resnet_2022_12_06_05_15_36/ --fusion_method intermediate_with_comm
+# CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6 python -m torch.distributed.launch --nproc_per_node=7 opencood/tools/train.py --hypes_yaml opencood/hypes_yaml/dair-v2x/dair_where2comm_max_multiscale_resnet_pretrain.yaml 
+# CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6 python -m torch.distributed.launch --nproc_per_node=7 opencood/tools/train.py --hypes_yaml opencood/hypes_yaml/dair-v2x/dair_where2comm_max_multiscale_resnet.yaml 
+# CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6 python -m torch.distributed.launch --nproc_per_node=7 opencood/tools/train.py --hypes_yaml opencood/hypes_yaml/dair-v2x/dair_where2comm_max_multiscale_resnet.yaml --model_pth  opencood/logs/dair_where2comm_max_multiscale_resnet_2023_01_05_09_29_21/net_epoch19.pth
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6 python -m torch.distributed.launch --nproc_per_node=7 opencood/tools/train.py --hypes_yaml opencood/hypes_yaml/dair-v2x/dair_where2comm_max_multiscale_resnet.yaml --model_dir  opencood/logs/dair_where2comm_max_multiscale_resnet_2023_01_05_09_29_21
+
+# CUDA_VISIBLE_DEVICES=0 python -m torch.distributed.launch --nproc_per_node=1 opencood/tools/train.py --hypes_yaml opencood/hypes_yaml/dair-v2x/dair_where2comm_max_multiscale_resnet.yaml --model_pth  opencood/logs/dair_where2comm_max_multiscale_resnet_2023_01_05_09_29_21/net_epoch19.pth
+# CUDA_VISIBLE_DEVICES=0 python -m torch.distributed.launch --nproc_per_node=1 opencood/tools/train.py --hypes_yaml opencood/hypes_yaml/dair-v2x/dair_where2comm_max_multiscale_resnet.yaml
+# python opencood/tools/inference.py --model_dir opencood/logs/dair_where2comm_attn_multiscale_resnet_2022_12_06_05_15_36/ --fusion_method intermediate_with_comm

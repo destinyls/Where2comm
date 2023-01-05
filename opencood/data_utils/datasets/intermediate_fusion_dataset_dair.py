@@ -8,10 +8,11 @@ Dataset class for intermediate fusion (DAIR-V2X)
 """
 import math
 from collections import OrderedDict
-from torch.utils.data import Dataset
-import os
-import numpy as np
 import torch
+from torch.utils.data import Dataset
+import numpy as np
+
+import os
 import json
 import opencood.data_utils.post_processor as post_processor
 from opencood.utils import box_utils
@@ -83,7 +84,8 @@ class IntermediateFusionDatasetDAIR(Dataset):
 
         self.root_dir = params['data_dir']
         self.split_info = load_json(split_dir)
-        co_datainfo = load_json(os.path.join(self.root_dir, 'cooperative/data_info.json'))
+        print('cooperative_pretrain/data_info.json' if self.params["pretrain"] else 'cooperative/data_info.json')
+        co_datainfo = load_json(os.path.join(self.root_dir, 'cooperative_pretrain/data_info.json' if self.params["pretrain"] else 'cooperative/data_info.json'))
         self.co_data = OrderedDict()
         for frame_info in co_datainfo:
             veh_frame_id = frame_info['vehicle_image_path'].split("/")[-1].replace(".jpg", "")

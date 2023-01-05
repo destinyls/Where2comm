@@ -1,10 +1,10 @@
 name: dair_where2comm_max_multiscale_resnet
 
 data_dir: "datasets/dair-v2x-c/training"
-root_dir: "datasets/dair-v2x-c/training/trainval.json"
+root_dir: "datasets/dair-v2x-c/training/train_pretrain.json"
 validate_dir: "datasets/dair-v2x-c/training/val.json"
 test_dir: "datasets/dair-v2x-c/training/val.json"
-pretrain: False
+pretrain: True
 
 noise_setting:
   add_noise: False
@@ -15,7 +15,6 @@ noise_setting:
     rot_mean: 0
 
 # comm_range: 100
-
 
 yaml_parser: "load_point_pillar_params"
 train_params:

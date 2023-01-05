@@ -233,8 +233,8 @@ class PointPillarLoss(nn.Module):
             total_loss = sum(total_loss)
         else:
             total_loss = total_loss[0]
-        reg_loss = self.loss_dict['reg_loss']
-        conf_loss = self.loss_dict['conf_loss']
+        # reg_loss = self.loss_dict['reg_loss']
+        # conf_loss = self.loss_dict['conf_loss']
 
         print_msg = "[epoch {}][{}/{}], || Loss: {:.2f} ||".format(epoch, batch_id + 1, batch_len, total_loss)
         for k, v in self.loss_dict.items():
