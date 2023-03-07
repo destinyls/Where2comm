@@ -1,9 +1,9 @@
 name: dair_early
 
-data_dir: "/root/dair-v2x-c/cooperative-vehicle-infrastructure/training"
-root_dir: "/root/dair-v2x-c/cooperative-vehicle-infrastructure/training/trainval.json"
-validate_dir: "/root/dair-v2x-c/cooperative-vehicle-infrastructure/training/val.json"
-test_dir: "/root/dair-v2x-c/cooperative-vehicle-infrastructure/testing/test.json"
+data_dir: "datasets/dair-v2x-c/training"
+root_dir: "datasets/dair-v2x-c/training/trainval.json"
+validate_dir: "datasets/dair-v2x-c/training/val.json"
+test_dir: "datasets/dair-v2x-c/training/val.json"
 
 noise_setting:
   add_noise: false
