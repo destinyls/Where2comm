@@ -9,7 +9,6 @@ import time
 import datetime
 import random
 import warnings
-
 import statistics
 
 import torch
@@ -23,9 +22,6 @@ import torch.backends.cudnn as cudnn
 import opencood.hypes_yaml.yaml_utils as yaml_utils
 from opencood.tools import train_utils
 from opencood.data_utils.datasets import build_dataset
-
-from icecream import ic
-
 
 def train_parser():
     parser = argparse.ArgumentParser(description="synthetic data generation")

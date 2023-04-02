@@ -42,7 +42,7 @@ def test_parser():
     return opt
 
 def baseline_pkl2dict(frame_id):
-    baseline_result_path = "/root/result"
+    baseline_result_path = "/workspace/result"
     pkl_file = os.path.join(baseline_result_path, "{:06}".format(frame_id) + ".pkl")
     if os.path.exists(pkl_file):
         with open(pkl_file, 'rb') as f:
@@ -84,57 +84,12 @@ def result2dict(box3d_tensor, score_tensor):
     output_dict = {"boxes_3d": boxes_3d, "scores_3d": scores_3d, "labels_3d": labels_3d}
     return output_dict
 
-def main():
-    opt = test_parser()
-    assert opt.fusion_method in ['late', 'early', 'intermediate', 'intermediate_with_comm', 'no']
 
-    hypes = yaml_utils.load_yaml(None, opt)
-
-    if opt.comm_thre is not None:
-        hypes['model']['args']['fusion_args']['communication']['thre'] = opt.comm_thre
-
-    hypes['validate_dir'] = hypes['test_dir']
-
-    test_inference = False
-    if "test.json" in hypes['test_dir']:
-        test_inference = True
-    # assert "test" in hypes['validate_dir']
-    left_hand = True if "OPV2V" in hypes['test_dir'] else False
-    print(f"Left hand visualizing: {left_hand}")
-
-    print('Dataset Building')
-    opencood_dataset = build_dataset(hypes, visualize=True, train=False)
-    data_loader = DataLoader(opencood_dataset,
-                             batch_size=1,
-                             num_workers=4,
-                             collate_fn=opencood_dataset.collate_batch_test,
-                             shuffle=False,
-                             pin_memory=False,
-                             drop_last=False)
-
-    print('Creating Model')
-    model = train_utils.create_model(hypes)
-    # we assume gpu is necessary
-    if torch.cuda.is_available():
-        model.cuda()
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-    print('Loading Model from checkpoint')
-    saved_path = opt.model_dir
-    if opt.eval_epoch is not None:
-        epoch_id = opt.eval_epoch
-        epoch_id, model = train_utils.load_saved_model(saved_path, model, epoch_id)
-    else:
-        epoch_id, model = train_utils.load_saved_model(saved_path, model)
-        
-    model.eval()
-
+def evaluation(model, data_loader, opt, opencood_dataset, device, test_inference, hypes, left_hand, epoch_id):
     # Create the dictionary for evaluation
     result_stat = {0.3: {'tp': [], 'fp': [], 'gt': 0},
                    0.5: {'tp': [], 'fp': [], 'gt': 0},
                    0.7: {'tp': [], 'fp': [], 'gt': 0}}
-    evaluator = Evaluator(["car"])
-
     total_comm_rates = []
     # total_box = []
     for i, batch_data in tqdm(enumerate(data_loader)):
@@ -173,12 +128,7 @@ def main():
                                           'fusion modes are supported.')
             if pred_box_tensor is None:
                 continue
-            
             if not test_inference:
-                # pred_dict, gt_dict = baseline_pkl2dict(frame_id)
-                # pred_dict = result2dict(pred_box_tensor, pred_score)
-                # gt_dict = result2dict(pred_box_tensor, None)
-                # evaluator.add_frame(pred_dict, gt_dict)
                 eval_utils.caluclate_tp_fp(pred_box_tensor,
                                         pred_score,
                                         gt_box_tensor,
@@ -205,7 +155,6 @@ def main():
                                                        'origin_lidar'][0],
                                                    frame_id,
                                                    npy_save_path)
-
             if opt.save_vis_n and opt.save_vis_n >i:
                 vis_save_path = os.path.join(opt.model_dir, 'vis_3d')
                 if not os.path.exists(vis_save_path):
@@ -232,23 +181,55 @@ def main():
                                     method='bev',
                                     left_hand=left_hand,
                                     vis_pred_box=True)
-    # print('total_box: ', sum(total_box)/len(total_box))
-
     if len(total_comm_rates) > 0:
         comm_rates = (sum(total_comm_rates)/len(total_comm_rates)).item()
     else:
         comm_rates = 0
     ap_30, ap_50, ap_70 = eval_utils.eval_final_results(result_stat, opt.model_dir)
-    
-    with open(os.path.join(saved_path, 'result.txt'), 'a+') as f:
+    with open(os.path.join(opt.model_dir, str(epoch_id) + '_result.txt'), 'a+') as f:
         msg = 'Epoch: {} | AP @0.3: {:.04f} | AP @0.5: {:.04f} | AP @0.7: {:.04f} | comm_rate: {:.06f}\n'.format(epoch_id, ap_30, ap_50, ap_70, comm_rates)
         if opt.comm_thre is not None:
             msg = 'Epoch: {} | AP @0.3: {:.04f} | AP @0.5: {:.04f} | AP @0.7: {:.04f} | comm_rate: {:.06f} | comm_thre: {:.04f}\n'.format(epoch_id, ap_30, ap_50, ap_70, comm_rates, opt.comm_thre)
         f.write(msg)
         print(msg)
 
-    # evaluator.print_ap("3d")
-    # evaluator.print_ap("bev")
+def main():
+    opt = test_parser()
+    assert opt.fusion_method in ['late', 'early', 'intermediate', 'intermediate_with_comm', 'no']
+    hypes = yaml_utils.load_yaml(None, opt)
+    if opt.comm_thre is not None:
+        hypes['model']['args']['fusion_args']['communication']['thre'] = opt.comm_thre
+    hypes['validate_dir'] = hypes['test_dir']
+
+    test_inference = False
+    if "test.json" in hypes['test_dir']:
+        test_inference = True
+    # assert "test" in hypes['validate_dir']
+    left_hand = True if "OPV2V" in hypes['test_dir'] else False
+    print(f"Left hand visualizing: {left_hand}")
+
+    print('Dataset Building')
+    opencood_dataset = build_dataset(hypes, visualize=True, train=False)
+    data_loader = DataLoader(opencood_dataset,
+                             batch_size=1,
+                             num_workers=4,
+                             collate_fn=opencood_dataset.collate_batch_test,
+                             shuffle=False,
+                             pin_memory=False,
+                             drop_last=False)
+
+    print('Creating Model')
+    model = train_utils.create_model(hypes)
+    # we assume gpu is necessary
+    if torch.cuda.is_available():
+        model.cuda()
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    for model_name in os.listdir(opt.model_dir):
+        if ".pth" not in model_name: continue
+        epoch_id = int(model_name.split('.')[0][9:])
+        epoch_id, model = train_utils.load_saved_model(opt.model_dir, model, epoch_id)
+        model.eval()
+        evaluation(model, data_loader, opt, opencood_dataset, device, test_inference, hypes, left_hand, epoch_id)
 
 if __name__ == '__main__':
     main()

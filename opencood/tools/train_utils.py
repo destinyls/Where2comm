@@ -109,11 +109,9 @@ def setup_train(hypes, local_rank=0):
         Config yaml dictionary for training:
     """
     model_name = hypes['name']
-    current_time = datetime.now()
-
-    folder_name = current_time.strftime("_%Y_%m_%d_%H_%M_%S")
-    folder_name = model_name + folder_name
-
+    # current_time = datetime.now()
+    # folder_name = current_time.strftime("_%Y_%m_%d_%H_%M_%S")
+    folder_name = model_name
     current_path = os.path.dirname(__file__)
     current_path = os.path.join(current_path, '../logs')
 
