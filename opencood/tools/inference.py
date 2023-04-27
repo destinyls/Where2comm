@@ -200,7 +200,7 @@ def main():
     if opt.comm_thre is not None:
         hypes['model']['args']['fusion_args']['communication']['thre'] = opt.comm_thre
     hypes['validate_dir'] = hypes['test_dir']
-    if hypes['fusion_method'] is not None:
+    if hypes.get('fusion_method', None) is not None:
         opt.fusion_method = hypes['fusion_method']
     print('{} inference'.format(opt.fusion_method))
 
