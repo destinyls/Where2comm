@@ -25,7 +25,8 @@ from opencood.data_utils.datasets import build_dataset
 
 def train_parser():
     parser = argparse.ArgumentParser(description="synthetic data generation")
-    parser.add_argument("--hypes_yaml", "-y", type=str, required=True,
+    parser.add_argument("--hypes_yaml",
+                        default='yize/Where2comm/opencood/hypes_yaml/dair-v2x/dair_where2comm_max_multiscale_resnet.yaml',
                         help='data generation yaml file needed ')
     parser.add_argument('--model_dir', default='',
                         help='Continued training path')
@@ -215,8 +216,8 @@ def main_worker(local_rank, nprocs, opt):
     torch.cuda.empty_cache()
     run_test = True
     if run_test:
-        fusion_method = opt.fusion_method
-        cmd = f"python /GPFS/data/yhu/code/OpenCOOD/opencood/tools/inference.py --model_dir {saved_path} --fusion_method {fusion_method}"
+        fusion_method = opt.fusion_method if hypes['fusion_method'] is None else hypes['fusion_method']
+        cmd = f"python /root/zhaiyize/yize/Where2comm/opencood/tools/inference.py --model_dir {saved_path} --fusion_method {fusion_method}"
         print(f"Running command: {cmd}")
         os.system(cmd)
 

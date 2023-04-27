@@ -24,11 +24,11 @@ from tqdm import tqdm
 
 def test_parser():
     parser = argparse.ArgumentParser(description="synthetic data generation")
-    parser.add_argument('--model_dir', type=str, required=True,
+    parser.add_argument('--model_dir', default='/root/zhaiyize/yize/Where2comm/opencood/logs/dair_where2comm_max_multiscale_resnet',
                         help='Continued training path')
     parser.add_argument('--fusion_method', type=str,
-                        default='intermediate',
-                        help='no, no_w_uncertainty, late, early or intermediate')
+                        default='single_v',
+                        help='single_v, single_i, no, no_w_uncertainty, late, early or intermediate')
     parser.add_argument('--save_vis_n', type=int, default=10,
                         help='save how many numbers of visualization result?')
     parser.add_argument('--save_npy', action='store_true',
@@ -91,37 +91,37 @@ def evaluation(model, data_loader, opt, opencood_dataset, device, test_inference
                    0.5: {'tp': [], 'fp': [], 'gt': 0},
                    0.7: {'tp': [], 'fp': [], 'gt': 0}}
     total_comm_rates = []
+    fusion_method = opt.fusion_method
     # total_box = []
     for i, batch_data in tqdm(enumerate(data_loader)):
         with torch.no_grad():
             batch_data = train_utils.to_device(batch_data, device)
             frame_id = int(batch_data["ego"]["sample_idx"])
-            if opt.fusion_method == 'late':
+            if fusion_method == 'late':
                 pred_box_tensor, pred_score, gt_box_tensor = \
                     inference_utils.inference_late_fusion(batch_data,
                                                           model,
-                                                          opencood_dataset)
-            elif opt.fusion_method == 'early':
+                                                          opencood_dataset, fusion_method)
+            elif fusion_method == 'early':
                 pred_box_tensor, pred_score, gt_box_tensor = \
                     inference_utils.inference_early_fusion(batch_data,
                                                            model,
-                                                           opencood_dataset)
-            elif opt.fusion_method == 'intermediate':
+                                                           opencood_dataset, fusion_method)
+            elif fusion_method == 'intermediate':
                 pred_box_tensor, pred_score, gt_box_tensor = \
                     inference_utils.inference_intermediate_fusion(batch_data,
                                                                   model,
-                                                                  opencood_dataset)
-            elif opt.fusion_method == 'no':
+                                                                  opencood_dataset, fusion_method)
+            elif fusion_method == 'single_v' or fusion_method == 'single_i':
                 pred_box_tensor, pred_score, gt_box_tensor = \
                     inference_utils.inference_no_fusion(batch_data,
                                                                   model,
-                                                                  opencood_dataset)
-            
-            elif opt.fusion_method == 'intermediate_with_comm':
+                                                                  opencood_dataset, fusion_method)
+            elif fusion_method == 'intermediate_with_comm':
                 pred_box_tensor, pred_score, gt_box_tensor, comm_rates = \
                     inference_utils.inference_intermediate_fusion_withcomm(batch_data,
                                                                   model,
-                                                                  opencood_dataset)
+                                                                  opencood_dataset, fusion_method)
                 total_comm_rates.append(comm_rates)
             else:
                 raise NotImplementedError('Only early, late and intermediate, no, intermediate_with_comm'
@@ -156,10 +156,10 @@ def evaluation(model, data_loader, opt, opencood_dataset, device, test_inference
                                                    frame_id,
                                                    npy_save_path)
             if opt.save_vis_n and opt.save_vis_n >i:
-                vis_save_path = os.path.join(opt.model_dir, 'vis_3d')
+                vis_save_path = os.path.join(opt.model_dir, fusion_method, 'vis_3d')
                 if not os.path.exists(vis_save_path):
                     os.makedirs(vis_save_path)
-                vis_save_path = os.path.join(opt.model_dir, 'vis_3d/3d_%05d.png' % frame_id)
+                vis_save_path = os.path.join(opt.model_dir, fusion_method, 'vis_3d/3d_%05d.png' % frame_id)
                 simple_vis.visualize(pred_box_tensor,
                                     gt_box_tensor,
                                     batch_data['ego']['origin_lidar'][0],
@@ -169,10 +169,10 @@ def evaluation(model, data_loader, opt, opencood_dataset, device, test_inference
                                     left_hand=left_hand,
                                     vis_pred_box=True)
                 
-                vis_save_path = os.path.join(opt.model_dir, 'vis_bev')
+                vis_save_path = os.path.join(opt.model_dir, fusion_method, 'vis_bev')
                 if not os.path.exists(vis_save_path):
                     os.makedirs(vis_save_path)
-                vis_save_path = os.path.join(opt.model_dir, 'vis_bev/bev_%05d.png' % frame_id)
+                vis_save_path = os.path.join(opt.model_dir, fusion_method, 'vis_bev/bev_%05d.png' % frame_id)
                 simple_vis.visualize(pred_box_tensor,
                                     gt_box_tensor,
                                     batch_data['ego']['origin_lidar'][0],
@@ -186,7 +186,7 @@ def evaluation(model, data_loader, opt, opencood_dataset, device, test_inference
     else:
         comm_rates = 0
     ap_30, ap_50, ap_70 = eval_utils.eval_final_results(result_stat, opt.model_dir)
-    with open(os.path.join(opt.model_dir, str(epoch_id) + '_result.txt'), 'a+') as f:
+    with open(os.path.join(opt.model_dir, fusion_method, str(epoch_id) + '_result.txt'), 'a+') as f:
         msg = 'Epoch: {} | AP @0.3: {:.04f} | AP @0.5: {:.04f} | AP @0.7: {:.04f} | comm_rate: {:.06f}\n'.format(epoch_id, ap_30, ap_50, ap_70, comm_rates)
         if opt.comm_thre is not None:
             msg = 'Epoch: {} | AP @0.3: {:.04f} | AP @0.5: {:.04f} | AP @0.7: {:.04f} | comm_rate: {:.06f} | comm_thre: {:.04f}\n'.format(epoch_id, ap_30, ap_50, ap_70, comm_rates, opt.comm_thre)
@@ -195,11 +195,14 @@ def evaluation(model, data_loader, opt, opencood_dataset, device, test_inference
 
 def main():
     opt = test_parser()
-    assert opt.fusion_method in ['late', 'early', 'intermediate', 'intermediate_with_comm', 'no']
+    assert opt.fusion_method in ['late', 'early', 'intermediate', 'intermediate_with_comm', 'no', 'single_v', 'single_i']
     hypes = yaml_utils.load_yaml(None, opt)
     if opt.comm_thre is not None:
         hypes['model']['args']['fusion_args']['communication']['thre'] = opt.comm_thre
     hypes['validate_dir'] = hypes['test_dir']
+    if hypes['fusion_method'] is not None:
+        opt.fusion_method = hypes['fusion_method']
+    print('{} inference'.format(opt.fusion_method))
 
     test_inference = False
     if "test.json" in hypes['test_dir']:

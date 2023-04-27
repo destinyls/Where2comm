@@ -784,7 +784,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
                     merged_feature_dict[feature_name].append(feature) # merged_feature_dict['coords'] = [f1,f2,f3,f4]
         return merged_feature_dict
     
-    def post_process(self, data_dict, output_dict):
+    def post_process(self, data_dict, output_dict, mode):
         """
         Process the outputs of the model to 2D/3D bounding box.
 
@@ -804,7 +804,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
             The tensor of gt bounding box.
         """
         pred_box_tensor, pred_score = \
-            self.post_processor.post_process(data_dict, output_dict)
+            self.post_processor.post_process(data_dict, output_dict, mode)
         gt_box_tensor = self.post_processor.generate_gt_bbx(data_dict)
 
         return pred_box_tensor, pred_score, gt_box_tensor

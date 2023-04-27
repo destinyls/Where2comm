@@ -131,6 +131,7 @@ dmypy.json
 # Pyre type checker
 .pyre/
 logs/
+old_logs/
 *.c
 *.so
 .idea

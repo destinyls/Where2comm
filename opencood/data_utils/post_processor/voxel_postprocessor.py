@@ -240,7 +240,7 @@ class VoxelPostprocessor(BasePostprocessor):
                 'pos_equal_one': pos_equal_one,
                 'neg_equal_one': neg_equal_one}
 
-    def post_process(self, data_dict, output_dict):
+    def post_process(self, data_dict, output_dict, mode):
         """
         Process the outputs of the model to 2D/3D bounding box.
         Step1: convert each cav's output to bounding box format
@@ -282,12 +282,22 @@ class VoxelPostprocessor(BasePostprocessor):
             anchor_box = cav_content['anchor_box']
 
             # classification probability
-            prob = output_dict[cav_id]['psm']
+            if mode == 'single_v':
+                prob = output_dict[cav_id]['psm_single_v']
+            elif mode == 'single_i':
+                prob = output_dict[cav_id]['psm_single_i']
+            else:
+                prob = output_dict[cav_id]['psm']
             prob = F.sigmoid(prob.permute(0, 2, 3, 1))
             prob = prob.reshape(1, -1)
 
             # regression map
-            reg = output_dict[cav_id]['rm']
+            if mode == 'single_v':
+                reg = output_dict[cav_id]['rm_single_v']
+            elif mode == 'single_i':
+                reg = output_dict[cav_id]['rm_single_i']
+            else:
+                reg = output_dict[cav_id]['rm']
 
             # convert regression map back to bounding box
             batch_box3d = self.delta_to_boxes3d(reg, anchor_box)

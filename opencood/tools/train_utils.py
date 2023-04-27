@@ -24,7 +24,7 @@ def backup_script(full_path, folders_to_save=["models", "data_utils", "utils", "
     for folder_name in folders_to_save:
         ttarget_folder = os.path.join(target_folder, folder_name)
         source_folder = os.path.join(current_path, f'../{folder_name}')
-        shutil.copytree(source_folder, ttarget_folder)
+        # shutil.copytree(source_folder, ttarget_folder)
 
 def load_saved_model(saved_path, model, epoch=None):
     """
@@ -109,9 +109,9 @@ def setup_train(hypes, local_rank=0):
         Config yaml dictionary for training:
     """
     model_name = hypes['name']
-    # current_time = datetime.now()
-    # folder_name = current_time.strftime("_%Y_%m_%d_%H_%M_%S")
-    folder_name = model_name
+    current_time = datetime.now()
+    folder_name = current_time.strftime("_%Y_%m_%d_%H_%M_%S")
+    folder_name = model_name + folder_name
     current_path = os.path.dirname(__file__)
     current_path = os.path.join(current_path, '../logs')
 
