@@ -690,13 +690,18 @@ class IntermediateFusionDatasetDAIR(Dataset):
         # save the transformation matrix (4, 4) to ego vehicle
         # transformation is only used in post process (no use.)
         # we all predict boxes in ego coord.
+        pairwise_t_matrix = batch[0]['ego']['pairwise_t_matrix']
         transformation_matrix_torch = \
-            torch.from_numpy(np.identity(4)).float()
+            torch.from_numpy(pairwise_t_matrix[0,0]).float()
+        transformation_matrix_torch_10 = \
+            torch.from_numpy(pairwise_t_matrix[1,0]).float()
         transformation_matrix_clean_torch = \
             torch.from_numpy(np.identity(4)).float()
 
         output_dict['ego'].update({'transformation_matrix':
                                        transformation_matrix_torch,
+                                    'transformation_matrix_01':
+                                       transformation_matrix_torch_10,
                                     'transformation_matrix_clean':
                                        transformation_matrix_clean_torch,})
 

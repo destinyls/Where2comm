@@ -58,7 +58,7 @@ def main_worker(local_rank, nprocs, opt):
     distributed = nprocs > 1
     train_sampler, val_sampler = None, None
     if distributed:
-        model = torch.nn.parallel.DistributedDataParallel(model,  device_ids=[local_rank])
+        model = torch.nn.parallel.DistributedDataParallel(model,  device_ids=[local_rank], find_unused_parameters=True)
         train_sampler = torch.utils.data.distributed.DistributedSampler(opencood_train_dataset)
         val_sampler = torch.utils.data.distributed.DistributedSampler(opencood_validate_dataset)
         
@@ -137,10 +137,14 @@ def main_worker(local_rank, nprocs, opt):
             output_dict = model(batch_data['ego'])
             # first argument is always your output dictionary,
             # second argument is always your label dictionary.
-            final_loss = criterion(output_dict, batch_data['ego']['label_dict'])
+            final_loss, single_loss_i, single_loss_v = 0.0, 0.0, 0.0
+            if 'psm' in output_dict.keys():
+                final_loss = criterion(output_dict, batch_data['ego']['label_dict'])
             if len(output_dict) > 2:
-                single_loss_v = criterion(output_dict, batch_data['ego']['label_dict_single_v'], prefix='_single_v')
-                single_loss_i = criterion(output_dict, batch_data['ego']['label_dict_single_i'], prefix='_single_i')
+                if 'psm_single_v' in output_dict.keys():
+                    single_loss_v = criterion(output_dict, batch_data['ego']['label_dict_single_v'], prefix='_single_v')
+                if 'psm_single_i' in output_dict.keys():
+                    single_loss_i = criterion(output_dict, batch_data['ego']['label_dict_single_i'], prefix='_single_i')
                 if 'fusion_args' in hypes['model']['args']:
                     if 'communication' in hypes['model']['args']['fusion_args']:
                         comm = hypes['model']['args']['fusion_args']['communication']
@@ -159,7 +163,7 @@ def main_worker(local_rank, nprocs, opt):
                 criterion.logging(epoch, i, len(train_loader), eta_string, writer, nprocs)
 
             if len(output_dict) > 2:
-                final_loss += single_loss_v + single_loss_i
+                final_loss += single_loss_v + single_loss_i                
                 if with_round_loss:
                     final_loss += round_loss_v
 
@@ -184,11 +188,14 @@ def main_worker(local_rank, nprocs, opt):
                     batch_data['ego']['epoch'] = epoch
                     ouput_dict = model(batch_data['ego'])
 
-                    final_loss = criterion(ouput_dict,
-                                           batch_data['ego']['label_dict'])
+                    final_loss, single_loss_i, single_loss_v = 0.0, 0.0, 0.0
+                    if 'psm' in output_dict.keys():
+                        final_loss = criterion(ouput_dict, batch_data['ego']['label_dict'])
                     if len(output_dict) > 2:
-                        single_loss_v = criterion(output_dict, batch_data['ego']['label_dict_single_v'], prefix='_single_v')
-                        single_loss_i = criterion(output_dict, batch_data['ego']['label_dict_single_i'], prefix='_single_i')
+                        if 'psm_single_v' in output_dict.keys():
+                            single_loss_v = criterion(output_dict, batch_data['ego']['label_dict_single_v'], prefix='_single_v')
+                        if 'psm_single_i' in output_dict.keys():
+                            single_loss_i = criterion(output_dict, batch_data['ego']['label_dict_single_i'], prefix='_single_i')
                         final_loss += single_loss_v + single_loss_i
 
                         if 'fusion_args' in hypes['model']['args']:

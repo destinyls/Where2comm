@@ -275,19 +275,28 @@ class VoxelPostprocessor(BasePostprocessor):
 
         for cav_id, cav_content in data_dict.items():
             assert cav_id in output_dict
-            # the transformation matrix to ego space
-            transformation_matrix = cav_content['transformation_matrix'] # no clean
 
             # (H, W, anchor_num, 7)
             anchor_box = cav_content['anchor_box']
 
             # classification probability
-            prob = output_dict[cav_id]['psm']
+            if 'psm' in output_dict[cav_id].keys():
+                transformation_matrix = cav_content['transformation_matrix']
+                prob = output_dict[cav_id]['psm']
+                reg = output_dict[cav_id]['rm']
+            elif 'psm_single_v' in output_dict[cav_id].keys():
+                transformation_matrix = cav_content['transformation_matrix']
+                prob = output_dict[cav_id]['psm_single_v']
+                reg = output_dict[cav_id]['rm_single_v']
+            elif 'psm_single_i' in output_dict[cav_id].keys():
+                transformation_matrix = cav_content['transformation_matrix_10']
+                prob = output_dict[cav_id]['psm_single_i']
+                reg = output_dict[cav_id]['rm_single_i']
+            else: 
+                print("no psm & rm")
+
             prob = F.sigmoid(prob.permute(0, 2, 3, 1))
             prob = prob.reshape(1, -1)
-
-            # regression map
-            reg = output_dict[cav_id]['rm']
 
             # convert regression map back to bounding box
             batch_box3d = self.delta_to_boxes3d(reg, anchor_box)
@@ -306,7 +315,6 @@ class VoxelPostprocessor(BasePostprocessor):
             if 'dm' in output_dict[cav_id].keys() and len(boxes3d) !=0:
                 dir_offset = self.params['dir_args']['dir_offset']
                 num_bins = self.params['dir_args']['num_bins']
-
 
                 dm  = output_dict[cav_id]['dm'] # [N, H, W, 4]
                 dir_cls_preds = dm.permute(0, 2, 3, 1).contiguous().reshape(1, -1, num_bins) # [1, N*H*W*2, 2]
