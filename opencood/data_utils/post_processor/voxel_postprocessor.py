@@ -280,15 +280,15 @@ class VoxelPostprocessor(BasePostprocessor):
             anchor_box = cav_content['anchor_box']
 
             # classification probability
-            if 'psm' in output_dict[cav_id].keys():
+            if self.params['selected_agent'] == 2:
                 transformation_matrix = cav_content['transformation_matrix']
                 prob = output_dict[cav_id]['psm']
                 reg = output_dict[cav_id]['rm']
-            elif 'psm_single_v' in output_dict[cav_id].keys():
+            elif self.params['selected_agent'] == 0:
                 transformation_matrix = cav_content['transformation_matrix']
                 prob = output_dict[cav_id]['psm_single_v']
                 reg = output_dict[cav_id]['rm_single_v']
-            elif 'psm_single_i' in output_dict[cav_id].keys():
+            elif self.params['selected_agent'] == 1:
                 transformation_matrix = cav_content['transformation_matrix_10']
                 prob = output_dict[cav_id]['psm_single_i']
                 reg = output_dict[cav_id]['rm_single_i']

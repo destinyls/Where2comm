@@ -19,7 +19,7 @@ import time
 
 
 class PointPillar(nn.Module):
-    def __init__(self, args):
+    def __init__(self, args, backbone_fix=False):
         super(PointPillar, self).__init__()
         # PIllar VFE
         self.pillar_vfe = PillarVFE(args['pillar_vfe'],
@@ -48,7 +48,7 @@ class PointPillar(nn.Module):
                                   kernel_size=1)
         self.reg_head = nn.Conv2d(128 * 2, 7 * args['anchor_number'],
                                   kernel_size=1)
-        if args['backbone_fix']:
+        if backbone_fix:
             self.backbone_fix()
             
     def forward(self, batch_dict):
@@ -112,13 +112,24 @@ class PointPillarWhere2comm(nn.Module):
         if 'dcn' in args:
             self.dcn = True
 
-        self.model_vehicle = PointPillar(args)
-        self.model_infra = PointPillar(args)
+        self.model_infra = PointPillar(args, args['infra_fix'])
+        self.model_vehicle = PointPillar(args, args['vehicle_fix'])
         # self.fusion_net = TransformerFusion(args['fusion_args'])
         self.fusion_net = Where2comm(args['fusion_args'])
         self.multi_scale = args['fusion_args']['multi_scale']
         self.cls_head = nn.Conv2d(128 * 2, args['anchor_number'], kernel_size=1)
         self.reg_head = nn.Conv2d(128 * 2, 7 * args['anchor_number'], kernel_size=1)
+
+        if args['fusion_fix']:
+            self.fusion_fix()
+
+    def fusion_fix(self):
+        for p in self.fusion_net.parameters():
+            p.requires_grad = False
+        for p in self.cls_head.parameters():
+            p.requires_grad = False
+        for p in self.reg_head.parameters():
+            p.requires_grad = False
 
     def split_data(self, voxel_features, voxel_coords, voxel_num_points, record_len):
         batch_size = voxel_coords[:, 0].max().int().item() + 1

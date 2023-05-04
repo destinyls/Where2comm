@@ -10,7 +10,7 @@ __pycache__/
 *.out
 # Distribution / packaging
 .Python
-datasets/
+/workspace/Where2comm/datasets/
 build/
 develop-eggs/
 dist/

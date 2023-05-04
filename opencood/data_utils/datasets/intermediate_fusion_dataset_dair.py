@@ -700,7 +700,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
 
         output_dict['ego'].update({'transformation_matrix':
                                        transformation_matrix_torch,
-                                    'transformation_matrix_01':
+                                    'transformation_matrix_10':
                                        transformation_matrix_torch_10,
                                     'transformation_matrix_clean':
                                        transformation_matrix_clean_torch,})
