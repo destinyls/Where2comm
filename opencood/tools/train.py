@@ -31,7 +31,7 @@ def train_parser():
                         help='Continued training path')
     parser.add_argument('--fusion_method', '-f', default="intermediate",
                         help='passed to inference.')
-    parser.add_argument('--local_rank', default=-1, type=int,
+    parser.add_argument('--local_rank', default=1234, type=int,
                         help='node rank for distributed training')
     parser.add_argument('--seed', default=None, type=int,
                         help='seed for initializing training. ')
@@ -134,7 +134,7 @@ def main_worker(local_rank, nprocs, opt):
             # becomes a list, which containing all data from other cavs
             # as well
             batch_data['ego']['epoch'] = epoch
-            output_dict = model(batch_data['ego'])
+            output_dict = model(batch_data['ego'], opencood_train_dataset)
             # first argument is always your output dictionary,
             # second argument is always your label dictionary.
             final_loss, single_loss_i, single_loss_v = 0.0, 0.0, 0.0
@@ -163,7 +163,15 @@ def main_worker(local_rank, nprocs, opt):
                 criterion.logging(epoch, i, len(train_loader), eta_string, writer, nprocs)
 
             if len(output_dict) > 2:
-                final_loss += single_loss_v + single_loss_i                
+                if hypes['postprocess']['selected_agent'] == 2:
+                    final_loss += single_loss_v + single_loss_i
+                elif hypes['postprocess']['selected_agent'] == 0:   
+                    final_loss = single_loss_v
+                elif hypes['postprocess']['selected_agent'] == 1:   
+                    final_loss = single_loss_i
+                else:
+                    raise Exception("selected_agent is 0 or 1 or 2")
+                
                 if with_round_loss:
                     final_loss += round_loss_v
 
@@ -196,8 +204,16 @@ def main_worker(local_rank, nprocs, opt):
                             single_loss_v = criterion(output_dict, batch_data['ego']['label_dict_single_v'], prefix='_single_v')
                         if 'psm_single_i' in output_dict.keys():
                             single_loss_i = criterion(output_dict, batch_data['ego']['label_dict_single_i'], prefix='_single_i')
-                        final_loss += single_loss_v + single_loss_i
-
+                            
+                        if hypes['postprocess']['selected_agent'] == 2:
+                            final_loss += single_loss_v + single_loss_i
+                        elif hypes['postprocess']['selected_agent'] == 0:   
+                            final_loss = single_loss_v
+                        elif hypes['postprocess']['selected_agent'] == 1:   
+                            final_loss = single_loss_i
+                        else:
+                            raise Exception("selected_agent is 0 or 1 or 2")
+                        
                         if 'fusion_args' in hypes['model']['args']:
                             if 'communication' in hypes['model']['args']['fusion_args']:
                                 comm = hypes['model']['args']['fusion_args']['communication']
@@ -223,7 +239,7 @@ def main_worker(local_rank, nprocs, opt):
     run_test = True
     if run_test:
         fusion_method = opt.fusion_method
-        cmd = f"python /GPFS/data/yhu/code/OpenCOOD/opencood/tools/inference.py --model_dir {saved_path} --fusion_method {fusion_method}"
+        cmd = f"python opencood/tools/inference.py --model_dir {saved_path} --fusion_method {fusion_method}"
         print(f"Running command: {cmd}")
         os.system(cmd)
 

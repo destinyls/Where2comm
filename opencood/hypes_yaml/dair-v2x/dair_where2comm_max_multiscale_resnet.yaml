@@ -1,9 +1,9 @@
 name: dair_where2comm_max_multiscale_resnet
 
-data_dir: "datasets/dair-v2x-c/training"
-root_dir: "datasets/dair-v2x-c/training/trainval.json"
-validate_dir: "datasets/dair-v2x-c/training/val.json"
-test_dir: "datasets/dair-v2x-c/training/val.json"
+data_dir: "/root/zhaiyize/yanglei/Dataset/DAIR-V2X-C/cooperative-vehicle-infrastructure/training"
+root_dir: "/root/zhaiyize/yanglei/Dataset/DAIR-V2X-C/cooperative-vehicle-infrastructure/training/trainval.json"
+validate_dir: "/root/zhaiyize/yanglei/Dataset/DAIR-V2X-C/cooperative-vehicle-infrastructure/training/val.json"
+test_dir: "/root/zhaiyize/yanglei/Dataset/DAIR-V2X-C/cooperative-vehicle-infrastructure/training/val.json"
 
 noise_setting:
   add_noise: False
@@ -76,7 +76,7 @@ postprocess:
 
 # model related
 model:
-  core_method: point_pillar_where2comm
+  core_method: point_pillar_ours
   
   args:
     voxel_size: *voxel_size
@@ -135,7 +135,7 @@ model:
       agg_operator:
         mode: 'MAX'
         feature_dim: 256
-      multi_scale: true
+      multi_scale: false
       layer_nums: *layer_nums
       num_filters: *num_filters
 
@@ -148,7 +148,7 @@ loss:
 
 optimizer:
   core_method: Adam
-  lr: 0.002
+  lr: 0.001
   args:
     eps: 1e-10
     weight_decay: 1e-4

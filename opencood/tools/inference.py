@@ -24,7 +24,7 @@ from tqdm import tqdm
 
 def test_parser():
     parser = argparse.ArgumentParser(description="synthetic data generation")
-    parser.add_argument('--model_dir', type=str, required=True,
+    parser.add_argument('--model_dir', type=str, default='/root/zhaiyize/yize/Where2comm/opencood/logs/dair_where2comm_max_multiscale_resnet_2023_05_06_07_35_56',
                         help='Continued training path')
     parser.add_argument('--fusion_method', type=str,
                         default='intermediate',

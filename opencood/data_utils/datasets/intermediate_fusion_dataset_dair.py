@@ -519,6 +519,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
         object_bbx_mask = []
         object_ids = []
         label_dict_list = []
+        anchor_box_list = []
 
         ######################## Single View GT ########################
         object_bbx_center_single_v = []
@@ -554,6 +555,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
             object_bbx_mask.append(ego_dict['object_bbx_mask'])
             object_ids.append(ego_dict['object_ids'])
             label_dict_list.append(ego_dict['label_dict'])
+            anchor_box_list.append(ego_dict['anchor_box'])
 
             ######################## Single View GT ########################
             object_bbx_center_single_v.append(ego_dict['object_bbx_center_single_v'])
@@ -615,6 +617,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
 
         # (B, max_cav)
         pairwise_t_matrix = torch.from_numpy(np.array(pairwise_t_matrix_list))
+        anchor_box = torch.from_numpy(np.array(anchor_box_list))
 
         # add pairwise_t_matrix to label dict
         label_torch_dict['pairwise_t_matrix'] = pairwise_t_matrix
@@ -645,6 +648,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
                                    'processed_lidar': processed_lidar_torch_dict,
                                    'record_len': record_len,
                                    'pairwise_t_matrix': pairwise_t_matrix,
+                                   'anchor_box': anchor_box,
                                    'lidar_pose_clean': lidar_pose_clean,
                                    'lidar_pose': lidar_pose})
 
@@ -789,7 +793,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
                     merged_feature_dict[feature_name].append(feature) # merged_feature_dict['coords'] = [f1,f2,f3,f4]
         return merged_feature_dict
     
-    def post_process(self, data_dict, output_dict):
+    def post_process(self, data_dict, output_dict, selected_agent):
         """
         Process the outputs of the model to 2D/3D bounding box.
 
@@ -808,8 +812,14 @@ class IntermediateFusionDatasetDAIR(Dataset):
         gt_box_tensor : torch.Tensor
             The tensor of gt bounding box.
         """
-        pred_box_tensor, pred_score = \
-            self.post_processor.post_process(data_dict, output_dict)
+        if self.train:
+            pred_box_tensor, pred_score = \
+                self.post_processor.post_process_train(data_dict, output_dict, selected_agent)
+            return pred_box_tensor, pred_score
+        
+        else:
+            pred_box_tensor, pred_score = \
+                self.post_processor.post_process(data_dict, output_dict)
         gt_box_tensor = self.post_processor.generate_gt_bbx(data_dict)
 
         return pred_box_tensor, pred_score, gt_box_tensor
