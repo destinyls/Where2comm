@@ -448,12 +448,12 @@ class VoxelPostprocessor(BasePostprocessor):
         # classification probability
         if selected_agent == 0:
             transformation_matrix = data_dict['transformation_matrix']
-            prob = output_dict['psm_single_v']
-            reg = output_dict['rm_single_v']
+            prob = output_dict['psm_single_v'].unsqueeze(0)
+            reg = output_dict['rm_single_v'].unsqueeze(0)
         elif selected_agent == 1:
             transformation_matrix = data_dict['transformation_matrix_10']
-            prob = output_dict['psm_single_i']
-            reg = output_dict['rm_single_i']
+            prob = output_dict['psm_single_i'].unsqueeze(0)
+            reg = output_dict['rm_single_i'].unsqueeze(0)
         else: 
             print("no psm & rm")
 

@@ -193,7 +193,7 @@ class PointPillarOurs(nn.Module):
             
             middle_data_dict = {'transformation_matrix': pairwise_t_matrix[i][0,0],
                                 'transformation_matrix_10': pairwise_t_matrix[i][1,0],
-                                'anchor_box': anchor_box
+                                'anchor_box': anchor_box[i]
                                 }
             middle_data_dict_list.append(middle_data_dict)
 
@@ -224,4 +224,5 @@ class PointPillarOurs(nn.Module):
         #                }
         # output_dict.update(result_dict)
         # return output_dict
+        print("miao~~~~~~")
         return pred_box_vichel, pred_score_vichel, pred_box_infra, pred_score_infra

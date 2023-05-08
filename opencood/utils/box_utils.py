@@ -173,7 +173,7 @@ def boxes_to_corners_3d_baseline(boxes3d, order):
     boxes3d, is_numpy = common_utils.check_numpy_to_torch(boxes3d)
     if order == 'hwl':
         boxes3d = boxes3d[:, [0, 1, 2, 5, 4, 3, 6]]
-    boxes3d = boxes3d.cpu().numpy()
+    boxes3d = boxes3d.detach().cpu().numpy()
     corners3d_list = []
     for idx in range(boxes3d.shape[0]):
         box3d = boxes3d[idx]
@@ -347,8 +347,8 @@ def project_box3d(box3d, transformation_matrix):
     box3d_corner = torch.cat((box3d_corner, torch_ones),
                              dim=1)
     # (N, 4, 8)
-    projected_box3d = torch.matmul(transformation_matrix,
-                                   box3d_corner)
+    projected_box3d = torch.matmul(transformation_matrix.type(torch.float32),
+                                   box3d_corner.type(torch.float32))
     # (N, 8, 3)
     projected_box3d = projected_box3d[:, :3, :].transpose(1, 2)
 
