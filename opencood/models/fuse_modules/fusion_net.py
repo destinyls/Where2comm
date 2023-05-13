@@ -14,7 +14,7 @@ import torch.nn.functional as F
 import numpy as np
 
 from opencood.models.sub_modules.torch_transformation_utils import warp_affine_simple
-from opencood.models.comm_modules.where2comm import Communication
+from opencood.models.comm_modules.ours import Communication
 
 
 
@@ -187,11 +187,7 @@ class Where2comm(nn.Module):
 
         self.communication = False
         self.round = 1
-        if 'communication' in args:
-            self.communication = True
-            self.naive_communication = Communication(args['communication'])
-            if 'round' in args['communication']:
-                self.round = args['communication']['round']
+        self.naive_communication = Communication(args)
         self.discrete_ratio = args['voxel_size'][0]  # voxel_size[0]=0.4    
         self.downsample_rate = args['downsample_rate']  # 2/4, downsample rate from original feature map [200, 704]
         
@@ -316,39 +312,26 @@ class Where2comm(nn.Module):
             if len(backbone.deblocks) > self.num_levels:
                 x_fuse = backbone.deblocks[-1](x_fuse)
         else:
+            x_fuse = []
             for b in range(B):
                 pred_box_vichel, pred_score_vichel = dataset.post_process(data_dict[b], output_dict[b], selected_agent=0)
                 pred_box_infra, pred_score_infra = dataset.post_process(data_dict[b], output_dict[b], selected_agent=1)
-            
-            
-            # ############ 1. Split the features #######################
-            # # split x:[(L1, C, H, W), (L2, C, H, W), ...]
-            # # for example [[2, 256, 50, 176], [1, 256, 50, 176], ...]
-            # batch_node_features = self.regroup(x, record_len)
-            # batch_confidence_maps = self.regroup(rm, record_len)
-
-            # ############ 2. Communication (Mask the features) #########
-            # if self.communication:
-            #     _, communication_masks, communication_rates = self.naive_communication(batch_confidence_maps, record_len, pairwise_t_matrix)
-            # else:
-            #     communication_rates = torch.tensor(0).to(x.device)
-            
-            # ############ 3. Fusion ####################################
-            # x_fuse = []
-            # for b in range(B):
-            #     # number of valid agent
-            #     N = record_len[b]
-            #     # (N,N,4,4)
-            #     # t_matrix[i, j]-> from i to j
-            #     t_matrix = pairwise_t_matrix[b][:N, :N, :, :]
-            #     node_features = batch_node_features[b]
-            #     if self.communication:
-            #         node_features = node_features * communication_masks[b]
-            #     neighbor_feature = warp_affine_simple(node_features,
-            #                                     t_matrix[0, :, :, :],
-            #                                     (H, W))
-            #     x_fuse.append(self.fuse_modules(neighbor_feature))
-            # x_fuse = torch.stack(x_fuse)
+                
+                # number of valid agent
+                N = record_len[b]
+                # (N,N,4,4)
+                # t_matrix[i, j]-> from i to j
+                t_matrix = pairwise_t_matrix[b][:N, :N, :, :]
+                vichel_features = output_dict[b]['spatial_features_2d_v'].unsqueeze(0)
+                infra_features = output_dict[b]['spatial_features_2d_i'].unsqueeze(0)
+                
+                select_features = self.naive_communication(pred_box_infra, pred_score_infra, infra_features)
+                concat_features = torch.concat([select_features, vichel_features], dim=0)
+                communication_features = warp_affine_simple(concat_features,
+                                                t_matrix[0, :, :, :],
+                                                (H, W))
+                
+                x_fuse.append(communication_features[0] + communication_features[1])
+            x_fuse = torch.stack(x_fuse)
         
-        return pred_box_vichel, pred_score_vichel, pred_box_infra, pred_score_infra
-
+        return x_fuse

@@ -208,21 +208,18 @@ class PointPillarOurs(nn.Module):
             if self.shrink_flag:
                 fused_feature = self.model_vehicle.shrink_conv(fused_feature)
         else:
-            pred_box_vichel, pred_score_vichel, pred_box_infra, pred_score_infra = self.fusion_net(dataset, middle_data_dict_list,middle_output_dict_list,
+            fused_feature = self.fusion_net(dataset, middle_data_dict_list,middle_output_dict_list,
                                             record_len,
                                             pairwise_t_matrix)
             
-        # psm = self.cls_head(fused_feature)
-        # rm = self.reg_head(fused_feature)
-        # output_dict = {'psm': psm,
-        #                'rm': rm,
-        #                'psm_single_v': psm_single_v,
-        #                'psm_single_i': psm_single_i,
-        #                'rm_single_v': rm_single_v,
-        #                'rm_single_i': rm_single_i,
-        #                'comm_rate': 0
-        #                }
-        # output_dict.update(result_dict)
-        # return output_dict
-        print("miao~~~~~~")
-        return pred_box_vichel, pred_score_vichel, pred_box_infra, pred_score_infra
+        psm = self.cls_head(fused_feature)
+        rm = self.reg_head(fused_feature)
+        output_dict = {'psm': psm,
+                       'rm': rm,
+                       'psm_single_v': psm_single_v,
+                       'psm_single_i': psm_single_i,
+                       'rm_single_v': rm_single_v,
+                       'rm_single_i': rm_single_i,
+                       'comm_rate': 0
+                       }
+        return output_dict

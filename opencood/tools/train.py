@@ -134,8 +134,7 @@ def main_worker(local_rank, nprocs, opt):
             # becomes a list, which containing all data from other cavs
             # as well
             batch_data['ego']['epoch'] = epoch
-            pred_box_vichel, pred_score_vichel, pred_box_infra, pred_score_infra = model(batch_data['ego'], opencood_train_dataset)
-            raise Exception("miao~")
+            output_dict = model(batch_data['ego'], opencood_train_dataset)
             # first argument is always your output dictionary,
             # second argument is always your label dictionary.
             final_loss, single_loss_i, single_loss_v = 0.0, 0.0, 0.0
