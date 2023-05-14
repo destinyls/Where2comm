@@ -37,6 +37,8 @@ class Communication(nn.Module):
         
         # TODO 确认pred_score_infra
         pred_box_infra = pred_box_infra[torch.where(pred_score_infra > self.thre)]
+        N = min(pred_box_infra.shape[0], 100)
+        pred_box_infra = pred_box_infra[:N,:,:]
         l_corner, _ = torch.min(pred_box_infra, dim=1)
         r_corner, _ = torch.max(pred_box_infra, dim=1)
         center_points_3d = (l_corner + r_corner) / 2
@@ -60,12 +62,11 @@ class Communication(nn.Module):
         
         Y, X = torch.meshgrid([torch.arange(H), torch.arange(W)], indexing="ij") 
         gaussian_maps_list = []
-        N = max(len(bev_size), 200)
         for i in range(N):
             gaussian_map = ((X - center_points_bev[i][0])**2 + (Y - center_points_bev[i][1])**2) / (2*bev_size[i]**2)
             gaussian_maps_list.append(gaussian_map)
         gaussian_maps = torch.stack(gaussian_maps_list, dim=0).unsqueeze(0).to(infra_features.device)  #[1, N, H, W]
         center_points_features = center_points_features.transpose(0, 1).transpose(1, 3).expand(C, N, H, W)  # [1, N, 1, C] -> [C, N, H, W]
-        select_features = torch.sum(center_points_features * gaussian_maps, dim=1).unsqueeze(0)
+        select_features = (torch.sum(center_points_features * gaussian_maps, dim=1).unsqueeze(0)) / N
         
         return select_features

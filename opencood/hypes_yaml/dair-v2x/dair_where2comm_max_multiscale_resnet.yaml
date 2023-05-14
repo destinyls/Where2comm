@@ -1,9 +1,9 @@
 name: dair_where2comm_max_multiscale_resnet
 
-data_dir: "/root/zhaiyize/yanglei/Dataset/DAIR-V2X-C/cooperative-vehicle-infrastructure/training"
-root_dir: "/root/zhaiyize/yanglei/Dataset/DAIR-V2X-C/cooperative-vehicle-infrastructure/training/trainval.json"
-validate_dir: "/root/zhaiyize/yanglei/Dataset/DAIR-V2X-C/cooperative-vehicle-infrastructure/training/val.json"
-test_dir: "/root/zhaiyize/yanglei/Dataset/DAIR-V2X-C/cooperative-vehicle-infrastructure/training/val.json"
+data_dir: "/root/yize/v2x-c/training"
+root_dir: "/root/yize/v2x-c/trainval.json"
+validate_dir: "/root/yize/v2x-c/val.json"
+test_dir: "/root/yize/v2x-c/val.json"
 
 noise_setting:
   add_noise: False
@@ -18,7 +18,7 @@ noise_setting:
 
 yaml_parser: "load_point_pillar_params"
 train_params:
-  batch_size: &batch_size 2
+  batch_size: &batch_size 1
   epoches: 70
   eval_freq: 2
   save_freq: 2
