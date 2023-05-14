@@ -36,6 +36,7 @@ class Communication(nn.Module):
         B, C, H, W = infra_features.shape
         
         # TODO 确认pred_score_infra
+        pred_box_infra = pred_box_infra[torch.where(pred_score_infra > self.thre)]
         l_corner, _ = torch.min(pred_box_infra, dim=1)
         r_corner, _ = torch.max(pred_box_infra, dim=1)
         center_points_3d = (l_corner + r_corner) / 2
@@ -59,7 +60,7 @@ class Communication(nn.Module):
         
         Y, X = torch.meshgrid([torch.arange(H), torch.arange(W)], indexing="ij") 
         gaussian_maps_list = []
-        N = len(bev_size)
+        N = max(len(bev_size), 200)
         for i in range(N):
             gaussian_map = ((X - center_points_bev[i][0])**2 + (Y - center_points_bev[i][1])**2) / (2*bev_size[i]**2)
             gaussian_maps_list.append(gaussian_map)
