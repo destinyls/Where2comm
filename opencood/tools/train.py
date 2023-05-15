@@ -194,7 +194,7 @@ def main_worker(local_rank, nprocs, opt):
 
                     batch_data = train_utils.to_local_rank(batch_data, local_rank)
                     batch_data['ego']['epoch'] = epoch
-                    ouput_dict = model(batch_data['ego'])
+                    ouput_dict = model(batch_data['ego'], opencood_validate_dataset)
 
                     final_loss, single_loss_i, single_loss_v = 0.0, 0.0, 0.0
                     if 'psm' in output_dict.keys():

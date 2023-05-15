@@ -92,7 +92,7 @@ def inference_early_fusion(batch_data, model, dataset):
     
     pred_box_tensor, pred_score, gt_box_tensor = \
         dataset.post_process(batch_data,
-                             output_dict, selected_agent=1)
+                             output_dict)
     return pred_box_tensor, pred_score, gt_box_tensor
 
 def inference_intermediate_fusion_withcomm(batch_data, model, dataset):

@@ -149,6 +149,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
         return data
 
     def __len__(self):
+        # return 10
         return len(self.split_info)
 
     def generate_object_center(self,
@@ -793,7 +794,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
                     merged_feature_dict[feature_name].append(feature) # merged_feature_dict['coords'] = [f1,f2,f3,f4]
         return merged_feature_dict
     
-    def post_process(self, data_dict, output_dict, selected_agent):
+    def post_process(self, data_dict, output_dict, selected_agent=1, middle_post_process=False):
         """
         Process the outputs of the model to 2D/3D bounding box.
 
@@ -812,7 +813,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
         gt_box_tensor : torch.Tensor
             The tensor of gt bounding box.
         """
-        if self.train:
+        if middle_post_process:
             pred_box_tensor, pred_score = \
                 self.post_processor.post_process_train(data_dict, output_dict, selected_agent)
             return pred_box_tensor, pred_score

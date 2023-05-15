@@ -314,8 +314,8 @@ class Where2comm(nn.Module):
         else:
             x_fuse = []
             for b in range(B):
-                pred_box_vichel, pred_score_vichel = dataset.post_process(data_dict[b], output_dict[b], selected_agent=0)
-                pred_box_infra, pred_score_infra = dataset.post_process(data_dict[b], output_dict[b], selected_agent=1)
+                # pred_box_vichel, pred_score_vichel = dataset.post_process(data_dict[b], output_dict[b], selected_agent=0)
+                pred_box_infra, pred_score_infra = dataset.post_process(data_dict[b], output_dict[b], selected_agent=1, middle_post_process=True)
                 
                 # number of valid agent
                 N = record_len[b]
