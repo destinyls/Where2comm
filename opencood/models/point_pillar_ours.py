@@ -93,6 +93,9 @@ class PointPillar(nn.Module):
         if self.shrink_flag:
             for p in self.shrink_conv.parameters():
                 p.requires_grad = False
+        if self.dcn:
+            for p in self.dcn_net.parameters():
+                p.requires_grad = False
         for p in self.cls_head.parameters():
             p.requires_grad = False
         for p in self.reg_head.parameters():

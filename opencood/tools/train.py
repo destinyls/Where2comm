@@ -29,6 +29,8 @@ def train_parser():
                         help='data generation yaml file needed ')
     parser.add_argument('--model_dir', default='',
                         help='Continued training path')
+    parser.add_argument('--resume', default='',
+                        help='Finetune')
     parser.add_argument('--fusion_method', '-f', default="intermediate",
                         help='passed to inference.')
     parser.add_argument('--local_rank', default=1234, type=int,
@@ -97,15 +99,27 @@ def main_worker(local_rank, nprocs, opt):
         init_epoch, model = train_utils.load_saved_model(saved_path, model.module if distributed else model)
         scheduler = train_utils.setup_lr_schedular(hypes, optimizer, init_epoch=init_epoch)
     else:
-        init_epoch = 0
-        # if we train the model from scratch, we need to create a folder
-        # to save the model,
-        saved_path = train_utils.setup_train(hypes, local_rank)
-        # lr scheduler setup
-        scheduler = train_utils.setup_lr_schedular(hypes, optimizer)
+        if opt.resume:
+            model = train_utils.load_model(opt.resume, model.module if distributed else model)
+            init_epoch = 0
+            # if we train the model from scratch, we need to create a folder
+            # to save the model
+            if local_rank == 0:
+                saved_path = train_utils.setup_train(hypes, local_rank)
+            # lr scheduler setup
+            scheduler = train_utils.setup_lr_schedular(hypes, optimizer)
+        else:
+            init_epoch = 0
+            # if we train the model from scratch, we need to create a folder
+            # to save the model,
+            if local_rank == 0:
+                saved_path = train_utils.setup_train(hypes, local_rank)
+            # lr scheduler setup
+            scheduler = train_utils.setup_lr_schedular(hypes, optimizer)
 
     # record training
-    writer = SummaryWriter(saved_path)
+    if local_rank == 0:
+        writer = SummaryWriter(saved_path)
 
     print('Training start')
     epoches = hypes['train_params']['epoches']
@@ -230,9 +244,10 @@ def main_worker(local_rank, nprocs, opt):
                     valid_ave_loss.append(final_loss.item())
 
             valid_ave_loss = statistics.mean(valid_ave_loss)
-            print('At epoch %d, the validation loss is %f' % (epoch,
-                                                              valid_ave_loss))
-            writer.add_scalar('Validate_Loss', valid_ave_loss, epoch)
+            if local_rank == 0:
+                print('At epoch %d, the validation loss is %f' % (epoch,
+                                                                valid_ave_loss))
+                writer.add_scalar('Validate_Loss', valid_ave_loss, epoch)
 
         if epoch % hypes['train_params']['save_freq'] == 0 and local_rank == 0:
             torch.save(model.state_dict(),
