@@ -188,6 +188,7 @@ class Where2comm(nn.Module):
         self.communication = False
         self.round = 1
         self.naive_communication = Communication(args)
+        self.thre = args['thre']
         self.discrete_ratio = args['voxel_size'][0]  # voxel_size[0]=0.4    
         self.downsample_rate = args['downsample_rate']  # 2/4, downsample rate from original feature map [200, 704]
         
@@ -317,7 +318,12 @@ class Where2comm(nn.Module):
                 # pred_box_vichel, pred_score_vichel = dataset.post_process(data_dict[b], output_dict[b], selected_agent=0)
                 pred_box_infra, pred_score_infra = dataset.post_process(data_dict[b], output_dict[b], selected_agent=1, middle_post_process=True)
 
-                if pred_box_infra is None or pred_box_infra.shape[0] == 0:
+                if pred_box_infra is None:
+                    x_fuse.append(output_dict[b]['spatial_features_2d_v'])
+                    continue
+                
+                pred_box_infra = pred_box_infra[torch.where(pred_score_infra > self.thre)]
+                if pred_box_infra.shape[0] == 0:
                     x_fuse.append(output_dict[b]['spatial_features_2d_v'])
                     continue
                 
@@ -329,7 +335,7 @@ class Where2comm(nn.Module):
                 vichel_features = output_dict[b]['spatial_features_2d_v'].unsqueeze(0)
                 infra_features = output_dict[b]['spatial_features_2d_i'].unsqueeze(0)
                 
-                select_features = self.naive_communication(pred_box_infra, pred_score_infra, infra_features)
+                select_features = self.naive_communication(pred_box_infra, infra_features)
                 concat_features = torch.concat([select_features, vichel_features], dim=0)
                 communication_features = warp_affine_simple(concat_features,
                                                 t_matrix[0, :, :, :],

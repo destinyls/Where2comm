@@ -11,7 +11,6 @@ class Communication(nn.Module):
     def __init__(self, args):
         super(Communication, self).__init__()
         
-        self.thre = args['thre']
         self.voxel_size = args['voxel_size']
         if 'gaussian_smooth' in args:
             # Gaussian Smooth
@@ -31,14 +30,13 @@ class Communication(nn.Module):
         self.gaussian_filter.weight.data = torch.Tensor(gaussian_kernel).to(self.gaussian_filter.weight.device).unsqueeze(0).unsqueeze(0)
         self.gaussian_filter.bias.data.zero_()
 
-    def forward(self, pred_box_infra, pred_score_infra, infra_features):
-        assert pred_box_infra.shape[0] > 0
-        B, C, H, W = infra_features.shape
+    def forward(self, pred_box_infra, infra_features):
+        _, C, H, W = infra_features.shape
         
-        # TODO 确认pred_score_infra
-        pred_box_infra = pred_box_infra[torch.where(pred_score_infra > self.thre)]
-        N = min(pred_box_infra.shape[0], 100)
+        N = min(pred_box_infra.shape[0], 20)
+        assert N > 0
         pred_box_infra = pred_box_infra[:N,:,:]
+        
         l_corner, _ = torch.min(pred_box_infra, dim=1)
         r_corner, _ = torch.max(pred_box_infra, dim=1)
         center_points_3d = (l_corner + r_corner) / 2
@@ -63,7 +61,6 @@ class Communication(nn.Module):
         ##############################
         Y, X = torch.meshgrid([torch.arange(H), torch.arange(W)], indexing="ij") 
         gaussian_maps_list = []
-        print(N)
         for i in range(N):
             gaussian_map = ((X - center_points_bev[i][0])**2 + (Y - center_points_bev[i][1])**2) / (2*bev_size[i]**2)
             gaussian_maps_list.append(gaussian_map)
