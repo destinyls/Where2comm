@@ -19,7 +19,7 @@ noise_setting:
 yaml_parser: "load_point_pillar_params"
 train_params:
   batch_size: &batch_size 1
-  epoches: 70
+  epoches: 140
   eval_freq: 2
   save_freq: 2
   max_cav: &max_cav 2
@@ -70,7 +70,7 @@ postprocess:
     neg_threshold: 0.45
     score_threshold: 0.2
   order: 'hwl' # hwl or lwh
-  selected_agent: 0 # 0 for vehicle or 1 for infra or 2 for fusion
+  selected_agent: 2 # 0 for vehicle or 1 for infra or 2 for fusion
   max_num: 100 # maximum number of objects in a single frame. use this number to make sure different frames has the same dimension in the same batch
   nms_thresh: 0.15
 
@@ -85,7 +85,7 @@ model:
     max_cav: *max_cav
     compression: 0 # compression rate
     vehicle_fix: false
-    infra_fix: false
+    infra_fix: true
     fusion_fix: False
 
     pillar_vfe:

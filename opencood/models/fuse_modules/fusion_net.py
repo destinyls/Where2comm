@@ -316,6 +316,10 @@ class Where2comm(nn.Module):
             for b in range(B):
                 # pred_box_vichel, pred_score_vichel = dataset.post_process(data_dict[b], output_dict[b], selected_agent=0)
                 pred_box_infra, pred_score_infra = dataset.post_process(data_dict[b], output_dict[b], selected_agent=1, middle_post_process=True)
+
+                if pred_box_infra is None or pred_box_infra.shape[0] == 0:
+                    x_fuse.append(output_dict[b]['spatial_features_2d_v'])
+                    continue
                 
                 # number of valid agent
                 N = record_len[b]

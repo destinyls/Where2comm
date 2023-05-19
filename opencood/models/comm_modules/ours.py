@@ -32,7 +32,7 @@ class Communication(nn.Module):
         self.gaussian_filter.bias.data.zero_()
 
     def forward(self, pred_box_infra, pred_score_infra, infra_features):
-
+        assert pred_box_infra.shape[0] > 0
         B, C, H, W = infra_features.shape
         
         # TODO 确认pred_score_infra
@@ -60,13 +60,28 @@ class Communication(nn.Module):
         
         center_points_features = F.grid_sample(infra_features, center_points_bev_unsqueeze.unsqueeze(0), align_corners=False)
         
+        ##############################
         Y, X = torch.meshgrid([torch.arange(H), torch.arange(W)], indexing="ij") 
         gaussian_maps_list = []
+        print(N)
         for i in range(N):
             gaussian_map = ((X - center_points_bev[i][0])**2 + (Y - center_points_bev[i][1])**2) / (2*bev_size[i]**2)
             gaussian_maps_list.append(gaussian_map)
         gaussian_maps = torch.stack(gaussian_maps_list, dim=0).unsqueeze(0).to(infra_features.device)  #[1, N, H, W]
         center_points_features = center_points_features.transpose(0, 1).transpose(1, 3).expand(C, N, H, W)  # [1, N, 1, C] -> [C, N, H, W]
-        select_features = (torch.sum(center_points_features * gaussian_maps, dim=1).unsqueeze(0)) / N
+        select_features = (torch.sum(center_points_features * gaussian_maps, dim=1) / N ).unsqueeze(0)
         
+        ###############################
+        # Y, X = torch.meshgrid([torch.arange(H), torch.arange(W)], indexing="ij") 
+        # gaussian_features_sum = torch.zeros([C, H, W], dtype=center_points_features.dtype).to(infra_features.device)
+        # for i in range(N):
+        #     gaussian_map = ((X - center_points_bev[i][0])**2 + (Y - center_points_bev[i][1])**2) / (2*bev_size[i]**2)
+        #     gaussian_map = gaussian_map.unsqueeze(0).to(infra_features.device)
+        #     center_points_features_ith = center_points_features[0, :, 0, i].unsqueeze(1).unsqueeze(2).expand(C, H, W)
+        #     gaussian_features = gaussian_map * center_points_features_ith
+        #     gaussian_features_sum += gaussian_features
+        # select_features = gaussian_features_sum.unsqueeze(0) / N
+        
+        assert not torch.isnan(select_features).any() and not torch.isinf(select_features).any()
+
         return select_features

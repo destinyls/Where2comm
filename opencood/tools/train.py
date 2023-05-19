@@ -134,7 +134,10 @@ def main_worker(local_rank, nprocs, opt):
             # becomes a list, which containing all data from other cavs
             # as well
             batch_data['ego']['epoch'] = epoch
-            output_dict = model(batch_data['ego'], opencood_train_dataset)
+            if hypes['model']['core_method'] == 'point_pillar_ours':
+                output_dict = model(batch_data['ego'], opencood_train_dataset)
+            else:
+                output_dict = model(batch_data['ego'])
             # first argument is always your output dictionary,
             # second argument is always your label dictionary.
             final_loss, single_loss_i, single_loss_v = 0.0, 0.0, 0.0
@@ -194,11 +197,14 @@ def main_worker(local_rank, nprocs, opt):
 
                     batch_data = train_utils.to_local_rank(batch_data, local_rank)
                     batch_data['ego']['epoch'] = epoch
-                    ouput_dict = model(batch_data['ego'], opencood_validate_dataset)
+                    if hypes['model']['core_method'] == 'point_pillar_ours':
+                        output_dict = model(batch_data['ego'], opencood_validate_dataset)
+                    else:
+                        output_dict = model(batch_data['ego'])
 
                     final_loss, single_loss_i, single_loss_v = 0.0, 0.0, 0.0
                     if 'psm' in output_dict.keys():
-                        final_loss = criterion(ouput_dict, batch_data['ego']['label_dict'])
+                        final_loss = criterion(output_dict, batch_data['ego']['label_dict'])
                     if len(output_dict) > 2:
                         if 'psm_single_v' in output_dict.keys():
                             single_loss_v = criterion(output_dict, batch_data['ego']['label_dict_single_v'], prefix='_single_v')
