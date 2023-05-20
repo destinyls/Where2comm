@@ -27,8 +27,8 @@ def load_yaml(file, opt=None):
     param : dict
         A dictionary that contains defined parameters.
     """
-    # if opt and opt.model_dir:
-    #     file = os.path.join(opt.model_dir, 'config.yaml')
+    if opt and opt.model_dir:
+        file = os.path.join(opt.model_dir, 'config.yaml')
 
     stream = open(file, 'r')
     loader = yaml.Loader

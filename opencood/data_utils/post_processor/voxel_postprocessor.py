@@ -277,7 +277,7 @@ class VoxelPostprocessor(BasePostprocessor):
             assert cav_id in output_dict
 
             # (H, W, anchor_num, 7)
-            anchor_box = cav_content['anchor_box']
+            anchor_box = cav_content['anchor_box_infer']
 
             # classification probability
             if self.params['selected_agent'] == 2:

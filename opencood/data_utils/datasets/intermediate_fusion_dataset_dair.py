@@ -687,7 +687,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
 
         # check if anchor box in the batch
         if batch[0]['ego']['anchor_box'] is not None:
-            output_dict['ego'].update({'anchor_box':
+            output_dict['ego'].update({'anchor_box_infer':
                 torch.from_numpy(np.array(
                     batch[0]['ego'][
                         'anchor_box']))})
