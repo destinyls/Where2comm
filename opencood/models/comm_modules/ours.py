@@ -12,6 +12,8 @@ class Communication(nn.Module):
         super(Communication, self).__init__()
         
         self.voxel_size = args['voxel_size']
+        self.lidar_range = args['lidar_range']
+        self.downsample_rate = args['downsample_rate']
         if 'gaussian_smooth' in args:
             # Gaussian Smooth
             kernel_size = args['gaussian_smooth']['k_size']
@@ -40,20 +42,34 @@ class Communication(nn.Module):
         l_corner, _ = torch.min(pred_box_infra, dim=1)
         r_corner, _ = torch.max(pred_box_infra, dim=1)
         center_points_3d = (l_corner + r_corner) / 2
+
+        mask = (center_points_3d[:, 0] > self.lidar_range[0]) & (center_points_3d[:, 0] < self.lidar_range[3])\
+           & (center_points_3d[:, 1] > self.lidar_range[1]) & (
+                   center_points_3d[:, 1] < self.lidar_range[4]) \
+           & (center_points_3d[:, 2] > self.lidar_range[2]) & (
+                   center_points_3d[:, 2] < self.lidar_range[5])
+        center_points_3d = center_points_3d[mask]
+        l_corner = l_corner[mask]
+        r_corner = r_corner[mask]
+        
+        if center_points_3d.shape[0] == 0:
+            select_features = torch.zeros([1, C, H, W], dtype=infra_features.dtype).to(infra_features.device)
+            return select_features
         
         # left and right corner points [[l_x, l_y], [r_x, r_y]]
+        # u = (x-lidar_x_range_min)/vx + W/2, v = (y-lidar_y_range_min)/vy + H/2
         corner_points_bev = torch.zeros([center_points_3d.shape[0], 2, 2], dtype=center_points_3d.dtype)
-        corner_points_bev[:,0,0] = (l_corner[:,0] + W/2) / self.voxel_size[0]
-        corner_points_bev[:,0,1] = (l_corner[:,1] + H/2) / self.voxel_size[1]
-        corner_points_bev[:,1,0] = (r_corner[:,0] + W/2) / self.voxel_size[0]
-        corner_points_bev[:,1,1] = (r_corner[:,1] + H/2) / self.voxel_size[1]
+        corner_points_bev[:,0,0] = (l_corner[:,0] - self.lidar_range[0]) / (self.voxel_size[0] * self.downsample_rate) + W/2
+        corner_points_bev[:,0,1] = (l_corner[:,1] - self.lidar_range[1]) / (self.voxel_size[1] * self.downsample_rate) + H/2
+        corner_points_bev[:,1,0] = (r_corner[:,0] - self.lidar_range[0]) / (self.voxel_size[0] * self.downsample_rate) + W/2
+        corner_points_bev[:,1,1] = (r_corner[:,1] - self.lidar_range[1]) / (self.voxel_size[1] * self.downsample_rate) + H/2
         bev_size = (corner_points_bev[:,1,1] - corner_points_bev[:,0,1]) * \
                             (corner_points_bev[:,1,0] - corner_points_bev[:,0,0])
         
         # center points
         center_points_bev = torch.zeros([center_points_3d.shape[0], 2], dtype=center_points_3d.dtype)
-        center_points_bev[:,0] = (center_points_3d[:,0] + W/2) / self.voxel_size[0]
-        center_points_bev[:,1] = (center_points_3d[:,1] + H/2) / self.voxel_size[1]
+        center_points_bev[:,0] = (center_points_3d[:,0] - self.lidar_range[0]) / (self.voxel_size[0] * self.downsample_rate) + W/2
+        center_points_bev[:,1] = (center_points_3d[:,1] - self.lidar_range[1]) / (self.voxel_size[1] * self.downsample_rate) + H/2
         center_points_bev_unsqueeze = center_points_bev.unsqueeze(0).to(infra_features.device)
         
         center_points_features = F.grid_sample(infra_features, center_points_bev_unsqueeze.unsqueeze(0), align_corners=False)
