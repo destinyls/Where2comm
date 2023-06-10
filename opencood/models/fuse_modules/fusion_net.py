@@ -336,7 +336,7 @@ class Where2comm(nn.Module):
                 infra_features = output_dict[b]['spatial_features_2d_i'].unsqueeze(0)
                 
                 select_features = self.naive_communication(pred_box_infra, infra_features)
-                concat_features = torch.concat([select_features, vichel_features], dim=0)
+                concat_features = torch.concat([vichel_features, select_features], dim=0)
                 communication_features = warp_affine_simple(concat_features,
                                                 t_matrix[0, :, :, :],
                                                 (H, W))
