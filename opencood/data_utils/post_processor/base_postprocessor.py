@@ -72,11 +72,15 @@ class BasePostprocessor(object):
             # used to project gt bounding box to ego space
             # object_bbx_center is clean.
             transformation_matrix = cav_content['transformation_matrix_clean']
-
+            
             object_bbx_center = cav_content['object_bbx_center']
             object_bbx_mask = cav_content['object_bbx_mask']
             object_ids = cav_content['object_ids']
-            object_bbx_center = object_bbx_center[object_bbx_mask == 1]
+            # 如果需要可视化路端坐标系下的路端后处理，需要手动～改为如下（这里不好传参自动化选择，可视化时都默认使用融合的车端坐标系下的gt：
+            # object_bbx_center = cav_content['object_bbx_center_single_i']
+            # object_bbx_mask = cav_content['object_bbx_mask_single_i']
+            # object_ids = cav_content['object_ids_single_i']
+            # object_bbx_center = object_bbx_center[object_bbx_mask == 1]
 
             # convert center to corner
             object_bbx_corner = \

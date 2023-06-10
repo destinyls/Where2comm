@@ -93,6 +93,11 @@ def inference_early_fusion(batch_data, model, dataset):
     pred_box_tensor, pred_score, gt_box_tensor = \
         dataset.post_process(batch_data,
                              output_dict)
+    # 如果需要可视化训练过程中的车/路后处理结果，手动～改为如下：
+    # pred_box_tensor, pred_score, gt_box_tensor = \
+    #     dataset.post_process(batch_data,
+    #                          output_dict, selected_agent=1, middle_post_process=False)
+    
     return pred_box_tensor, pred_score, gt_box_tensor
 
 def inference_intermediate_fusion_withcomm(batch_data, model, dataset):

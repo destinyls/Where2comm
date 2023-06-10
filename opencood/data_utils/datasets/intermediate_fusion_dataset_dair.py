@@ -238,6 +238,10 @@ class IntermediateFusionDatasetDAIR(Dataset):
         projected_lidar = \
             box_utils.project_points_by_matrix_torch(lidar_np[:, :3],
                                                         transformation_matrix)
+        projected_lidar_current = \
+            box_utils.project_points_by_matrix_torch(lidar_np[:, :3],
+                                        torch.from_numpy(np.identity(4)).float())
+
         if self.kd_flag:
             lidar_np_clean = copy.deepcopy(lidar_np)
 
@@ -255,6 +259,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
              'object_bbx_center_single': object_bbx_center_single[object_bbx_mask_single == 1],
              'object_ids_single': object_ids_single,
              'projected_lidar': projected_lidar,
+             'projected_lidar_current': projected_lidar_current,
              'processed_features': processed_lidar,
              'transformation_matrix': transformation_matrix,
              'transformation_matrix_clean': transformation_matrix_clean})
@@ -355,6 +360,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
 
         if self.visualize:
             projected_lidar_stack = []
+            projected_lidar_current_stack = []
 
         # loop over all CAVs to process information
         for cav_id, selected_cav_base in base_data_dict.items():
@@ -415,6 +421,8 @@ class IntermediateFusionDatasetDAIR(Dataset):
             if self.visualize:
                 projected_lidar_stack.append(
                     selected_cav_processed['projected_lidar'])
+                projected_lidar_current_stack.append(
+                    selected_cav_processed['projected_lidar_current'])
 
         ########## Added by Yifan Lu 2022.4.5 ################
         # filter those out of communicate range
@@ -505,6 +513,8 @@ class IntermediateFusionDatasetDAIR(Dataset):
                     projected_lidar_stack[0]})
             processed_data_dict['ego'].update({'origin_lidar_i':
                     projected_lidar_stack[1]})
+            processed_data_dict['ego'].update({'origin_lidar_i_infra':
+                    projected_lidar_current_stack[1]})
 
 
         processed_data_dict['ego'].update({'sample_idx': veh_frame_id,
@@ -549,6 +559,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
             origin_lidar = []
             origin_lidar_v = []
             origin_lidar_i = []
+            origin_lidar_i_infra = []
 
         for i in range(len(batch)):
             ego_dict = batch[i]['ego']
@@ -584,6 +595,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
                 origin_lidar.append(ego_dict['origin_lidar'])
                 origin_lidar_v.append(ego_dict['origin_lidar_v'])
                 origin_lidar_i.append(ego_dict['origin_lidar_i'])
+                origin_lidar_i_infra.append(ego_dict['origin_lidar_i_infra'])
 
         # convert to numpy, (B, max_num, 7)
         object_bbx_center = torch.from_numpy(np.array(object_bbx_center))
@@ -668,6 +680,11 @@ class IntermediateFusionDatasetDAIR(Dataset):
                 np.array(downsample_lidar_minimum(pcd_np_list=origin_lidar_i))
             origin_lidar_i = torch.from_numpy(origin_lidar_i)
             output_dict['ego'].update({'origin_lidar_i': origin_lidar_i})
+
+            origin_lidar_i_infra = \
+                np.array(downsample_lidar_minimum(pcd_np_list=origin_lidar_i_infra))
+            origin_lidar_i_infra = torch.from_numpy(origin_lidar_i_infra)
+            output_dict['ego'].update({'origin_lidar_i_infra': origin_lidar_i_infra})
         if self.kd_flag:
             teacher_processed_lidar_torch_dict = \
                 self.pre_processor.collate_batch(teacher_processed_lidar_list)
@@ -699,7 +716,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
         transformation_matrix_torch = \
             torch.from_numpy(pairwise_t_matrix[0,0]).float()
         transformation_matrix_torch_10 = \
-            torch.from_numpy(pairwise_t_matrix[1,0]).float()
+            torch.from_numpy(pairwise_t_matrix[0,0]).float()
         transformation_matrix_clean_torch = \
             torch.from_numpy(np.identity(4)).float()
 

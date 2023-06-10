@@ -24,11 +24,17 @@ from tqdm import tqdm
 
 def test_parser():
     parser = argparse.ArgumentParser(description="synthetic data generation")
-    parser.add_argument('--model_dir', type=str, default='/root/yize/Where2comm/opencood/logs/dair_where2comm_max_multiscale_resnet_2023_05_19_13_45_36',
+    parser.add_argument('--model_dir', type=str, default='/root/zhaiyize/yize/Where2comm/opencood/where2comm_infra',
                         help='Continued training path')
     parser.add_argument('--fusion_method', type=str,
                         default='intermediate',
                         help='no, no_w_uncertainty, late, early or intermediate')
+    # 用于选择可视化车、路、融合结果的参数，因为配置文件是训练时保留下来的配置文件，一般selected_agent都是2，每次去改配置文件不太方便就加个传参
+    parser.add_argument('--selected_agent', type=int,
+                        help='0 1 or 2')
+    # 用于选择在路/车坐标系下进行可视化的参数
+    parser.add_argument('--infra_coordinate', action='store_true', default=False,
+                        help='visual whether in ego coordinate')
     parser.add_argument('--save_vis_n', type=int, default=10,
                         help='save how many numbers of visualization result?')
     parser.add_argument('--save_npy', action='store_true',
@@ -156,13 +162,18 @@ def evaluation(model, data_loader, opt, opencood_dataset, device, test_inference
                                                    frame_id,
                                                    npy_save_path)
             if opt.save_vis_n and opt.save_vis_n >i:
+                if opt.infra_coordinate:
+                    # 如果在路端坐标系下可视化，data为路端的lidar_data
+                    origin_lidar = batch_data['ego']['origin_lidar_i_infra'][0]
+                else:
+                    origin_lidar = batch_data['ego']['origin_lidar'][0]
                 vis_save_path = os.path.join(opt.model_dir, 'vis_3d')
                 if not os.path.exists(vis_save_path):
                     os.makedirs(vis_save_path)
                 vis_save_path = os.path.join(opt.model_dir, 'vis_3d/3d_%05d.png' % frame_id)
                 simple_vis.visualize(pred_box_tensor,
                                     gt_box_tensor,
-                                    batch_data['ego']['origin_lidar'][0],
+                                    origin_lidar,
                                     hypes['postprocess']['gt_range'],
                                     vis_save_path,
                                     method='3d',
@@ -175,7 +186,7 @@ def evaluation(model, data_loader, opt, opencood_dataset, device, test_inference
                 vis_save_path = os.path.join(opt.model_dir, 'vis_bev/bev_%05d.png' % frame_id)
                 simple_vis.visualize(pred_box_tensor,
                                     gt_box_tensor,
-                                    batch_data['ego']['origin_lidar'][0],
+                                    origin_lidar,
                                     hypes['postprocess']['gt_range'],
                                     vis_save_path,
                                     method='bev',
@@ -195,11 +206,15 @@ def evaluation(model, data_loader, opt, opencood_dataset, device, test_inference
 
 def main():
     opt = test_parser()
+    print(opt.infra_coordinate)
     assert opt.fusion_method in ['late', 'early', 'intermediate', 'intermediate_with_comm', 'no']
     hypes = yaml_utils.load_yaml(None, opt)
     if opt.comm_thre is not None:
         hypes['model']['args']['fusion_args']['communication']['thre'] = opt.comm_thre
     hypes['validate_dir'] = hypes['test_dir']
+
+    if opt.selected_agent is not None:
+        hypes['postprocess']['selected_agent'] = opt.selected_agent
 
     test_inference = False
     if "test.json" in hypes['test_dir']:
@@ -210,6 +225,8 @@ def main():
 
     print('Dataset Building')
     opencood_dataset = build_dataset(hypes, visualize=True, train=False)
+    # 如果需要可视化训练过程中的车/路后处理结果，手动～改为如下（因为本质上是推理的代码，所以就不自动化传参了，其他需要手动改的地方全局搜索“手动～”：
+    # opencood_dataset = build_dataset(hypes, visualize=True, train=True)
     data_loader = DataLoader(opencood_dataset,
                              batch_size=1,
                              num_workers=4,

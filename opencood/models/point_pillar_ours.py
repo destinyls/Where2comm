@@ -194,8 +194,9 @@ class PointPillarOurs(nn.Module):
                                 }
             middle_output_dict_list.append(middle_output_dict)
             
+            # 因为路端也在自己的坐标系下做后处理，所以是单位矩阵
             middle_data_dict = {'transformation_matrix': pairwise_t_matrix[i][0,0],
-                                'transformation_matrix_10': pairwise_t_matrix[i][1,0],
+                                'transformation_matrix_10': pairwise_t_matrix[i][0,0], # pairwise_t_matrix[i][1,0]
                                 'anchor_box': anchor_box[i]
                                 }
             middle_data_dict_list.append(middle_data_dict)
