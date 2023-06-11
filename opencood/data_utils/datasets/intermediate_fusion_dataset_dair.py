@@ -716,7 +716,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
         transformation_matrix_torch = \
             torch.from_numpy(pairwise_t_matrix[0,0]).float()
         transformation_matrix_torch_10 = \
-            torch.from_numpy(pairwise_t_matrix[0,0]).float()
+            torch.from_numpy(pairwise_t_matrix[1,0]).float()
         transformation_matrix_clean_torch = \
             torch.from_numpy(np.identity(4)).float()
 

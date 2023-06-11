@@ -80,7 +80,7 @@ class BasePostprocessor(object):
             # object_bbx_center = cav_content['object_bbx_center_single_i']
             # object_bbx_mask = cav_content['object_bbx_mask_single_i']
             # object_ids = cav_content['object_ids_single_i']
-            # object_bbx_center = object_bbx_center[object_bbx_mask == 1]
+            object_bbx_center = object_bbx_center[object_bbx_mask == 1]
 
             # convert center to corner
             object_bbx_corner = \

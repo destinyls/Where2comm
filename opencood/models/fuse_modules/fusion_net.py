@@ -341,8 +341,8 @@ class Where2comm(nn.Module):
                                                 t_matrix[0, :, :, :],
                                                 (H, W))
                 
-                # x_fuse.append(communication_features[0] + communication_features[1])
-                x_fuse.append(self.fuse_modules(communication_features))
+                x_fuse.append(communication_features[0] + communication_features[1])
+                # x_fuse.append(self.fuse_modules(communication_features))
                 # x_fuse.append(communication_features[0])
             x_fuse = torch.stack(x_fuse)
         

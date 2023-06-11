@@ -24,7 +24,7 @@ from tqdm import tqdm
 
 def test_parser():
     parser = argparse.ArgumentParser(description="synthetic data generation")
-    parser.add_argument('--model_dir', type=str, default='/root/zhaiyize/yize/Where2comm/opencood/where2comm_infra',
+    parser.add_argument('--model_dir', type=str, default='/root/zhaiyize/yize/Where2comm/opencood/logs/ours_0610',
                         help='Continued training path')
     parser.add_argument('--fusion_method', type=str,
                         default='intermediate',
