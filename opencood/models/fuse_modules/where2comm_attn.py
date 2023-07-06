@@ -230,7 +230,7 @@ class Where2comm(nn.Module):
         split_x = torch.tensor_split(x, cum_sum_len[:-1].cpu())
         return split_x
 
-    def forward(self, x, rm, record_len, pairwise_t_matrix, backbone=None, heads=None):
+    def forward(self, x, rm, record_len, pairwise_t_matrix, dataset, data_dict, output_dict, backbone=None, heads=None):
         """
         Fusion forwarding.
         
@@ -328,11 +328,15 @@ class Where2comm(nn.Module):
             
             ############ 3. Fusion ####################################
             x_fuse = []
+            print("B: ")
             for b in range(B):
+                pred_box_infra, pred_score_infra = dataset.post_process(data_dict[b], output_dict[b], selected_agent=1, middle_post_process=True)
+
                 # number of valid agent
                 N = record_len[b]
                 # (N,N,4,4)
                 # t_matrix[i, j]-> from i to j
+                
                 t_matrix = pairwise_t_matrix[b][:N, :N, :, :]
                 node_features = batch_node_features[b]
                 if self.communication:

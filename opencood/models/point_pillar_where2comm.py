@@ -164,16 +164,36 @@ class PointPillarWhere2comm(nn.Module):
                         'record_len': record_len}
         return batch_dict_v, batch_dict_i
 
-    def forward(self, data_dict):
+    def forward(self, data_dict, dataset):
         voxel_features = data_dict['processed_lidar']['voxel_features']
         voxel_coords = data_dict['processed_lidar']['voxel_coords']
         voxel_num_points = data_dict['processed_lidar']['voxel_num_points']
         record_len = data_dict['record_len']
         pairwise_t_matrix = data_dict['pairwise_t_matrix']
+        anchor_box = data_dict['anchor_box']
 
         batch_dict_v, batch_dict_i = self.split_data(voxel_features, voxel_coords, voxel_num_points, record_len)
         psm_single_v, rm_single_v, spatial_features_v, spatial_features_2d_v = self.model_vehicle(batch_dict_v)
         psm_single_i, rm_single_i, spatial_features_i, spatial_features_2d_i= self.model_infra(batch_dict_i)
+
+        middle_output_dict_list, middle_data_dict_list = [], []
+        batch_size = voxel_coords[:, 0].max().int().item() + 1
+        for i in range(batch_size):
+            middle_output_dict = {'psm_single_v': psm_single_v[i],
+                                'rm_single_v': rm_single_v[i],
+                                'psm_single_i': psm_single_i[i],
+                                'rm_single_i': rm_single_i[i],
+                                'spatial_features_v': spatial_features_v[i],
+                                'spatial_features_i': spatial_features_i[i],
+                                'spatial_features_2d_v': spatial_features_2d_v[i],
+                                'spatial_features_2d_i': spatial_features_2d_i[i]
+                                }
+            middle_output_dict_list.append(middle_output_dict)
+            middle_data_dict = {'transformation_matrix': pairwise_t_matrix[i][0,0],
+                                'transformation_matrix_10': pairwise_t_matrix[i][0,0],
+                                'anchor_box': anchor_box[i],
+                                }
+            middle_data_dict_list.append(middle_data_dict)
         
         psm_single, spatial_features, spatial_features_2d = [], [], []
         for i in range(psm_single_v.shape[0]):
@@ -203,7 +223,8 @@ class PointPillarWhere2comm(nn.Module):
             fused_feature, communication_rates, result_dict = self.fusion_net(spatial_features_2d,
                                             psm_single,
                                             record_len,
-                                            pairwise_t_matrix)
+                                            pairwise_t_matrix,
+                                            dataset, middle_data_dict_list, middle_output_dict_list)
             
         psm = self.cls_head(fused_feature)
         rm = self.reg_head(fused_feature)

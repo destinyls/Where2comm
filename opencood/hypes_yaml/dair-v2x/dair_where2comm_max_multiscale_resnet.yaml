@@ -135,7 +135,7 @@ model:
       agg_operator:
         mode: 'MAX'
         feature_dim: 256
-      multi_scale: true
+      multi_scale: false
       layer_nums: *layer_nums
       num_filters: *num_filters
 
