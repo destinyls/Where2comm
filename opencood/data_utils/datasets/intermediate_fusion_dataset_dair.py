@@ -237,6 +237,9 @@ class IntermediateFusionDatasetDAIR(Dataset):
         projected_lidar = \
             box_utils.project_points_by_matrix_torch(lidar_np[:, :3],
                                                         transformation_matrix)
+        projected_lidar_current = \
+            box_utils.project_points_by_matrix_torch(lidar_np[:, :3],
+                                        torch.from_numpy(np.identity(4)).float())
         if self.kd_flag:
             lidar_np_clean = copy.deepcopy(lidar_np)
 
@@ -254,6 +257,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
              'object_bbx_center_single': object_bbx_center_single[object_bbx_mask_single == 1],
              'object_ids_single': object_ids_single,
              'projected_lidar': projected_lidar,
+             'projected_lidar_current': projected_lidar_current,
              'processed_features': processed_lidar,
              'transformation_matrix': transformation_matrix,
              'transformation_matrix_clean': transformation_matrix_clean})
@@ -354,6 +358,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
 
         if self.visualize:
             projected_lidar_stack = []
+            projected_lidar_current_stack = []
 
         # loop over all CAVs to process information
         for cav_id, selected_cav_base in base_data_dict.items():
@@ -414,6 +419,8 @@ class IntermediateFusionDatasetDAIR(Dataset):
             if self.visualize:
                 projected_lidar_stack.append(
                     selected_cav_processed['projected_lidar'])
+                projected_lidar_current_stack.append(
+                    selected_cav_processed['projected_lidar_current'])
 
         ########## Added by Yifan Lu 2022.4.5 ################
         # filter those out of communicate range
@@ -504,6 +511,8 @@ class IntermediateFusionDatasetDAIR(Dataset):
                     projected_lidar_stack[0]})
             processed_data_dict['ego'].update({'origin_lidar_i':
                     projected_lidar_stack[1]})
+            processed_data_dict['ego'].update({'origin_lidar_i_infra':
+                    projected_lidar_current_stack[1]})
 
 
         processed_data_dict['ego'].update({'sample_idx': veh_frame_id,
@@ -519,6 +528,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
         object_bbx_mask = []
         object_ids = []
         label_dict_list = []
+        anchor_box_list = []
 
         ######################## Single View GT ########################
         object_bbx_center_single_v = []
@@ -537,6 +547,8 @@ class IntermediateFusionDatasetDAIR(Dataset):
         record_len = []
         lidar_pose_list = []
         lidar_pose_clean_list = []
+
+        sample_idx_list = []
         
         # pairwise transformation matrix
         pairwise_t_matrix_list = []
@@ -547,6 +559,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
             origin_lidar = []
             origin_lidar_v = []
             origin_lidar_i = []
+            origin_lidar_i_infra = []
 
         for i in range(len(batch)):
             ego_dict = batch[i]['ego']
@@ -554,6 +567,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
             object_bbx_mask.append(ego_dict['object_bbx_mask'])
             object_ids.append(ego_dict['object_ids'])
             label_dict_list.append(ego_dict['label_dict'])
+            anchor_box_list.append(ego_dict['anchor_box'])
 
             ######################## Single View GT ########################
             object_bbx_center_single_v.append(ego_dict['object_bbx_center_single_v'])
@@ -573,6 +587,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
             processed_lidar_list.append(ego_dict['processed_lidar']) # different cav_num, ego_dict['processed_lidar'] is list.
             record_len.append(ego_dict['cav_num'])
             pairwise_t_matrix_list.append(ego_dict['pairwise_t_matrix'])
+            sample_idx_list.append(int(ego_dict['sample_idx']))
 
             if self.kd_flag:
                 teacher_processed_lidar_list.append(ego_dict['teacher_processed_lidar'])
@@ -581,6 +596,8 @@ class IntermediateFusionDatasetDAIR(Dataset):
                 origin_lidar.append(ego_dict['origin_lidar'])
                 origin_lidar_v.append(ego_dict['origin_lidar_v'])
                 origin_lidar_i.append(ego_dict['origin_lidar_i'])
+                origin_lidar_i_infra.append(ego_dict['origin_lidar_i_infra'])
+                
 
         # convert to numpy, (B, max_num, 7)
         object_bbx_center = torch.from_numpy(np.array(object_bbx_center))
@@ -614,7 +631,9 @@ class IntermediateFusionDatasetDAIR(Dataset):
             self.post_processor.collate_batch(label_dict_list_single_i)
 
         # (B, max_cav)
-        pairwise_t_matrix = torch.from_numpy(np.array(pairwise_t_matrix_list))
+        pairwise_t_matrix = torch.from_numpy(np.array(pairwise_t_matrix_list).astype(np.float32))
+        anchor_box = torch.from_numpy(np.array(anchor_box_list))
+        sample_idx = torch.from_numpy(np.array(sample_idx_list))
 
         # add pairwise_t_matrix to label dict
         label_torch_dict['pairwise_t_matrix'] = pairwise_t_matrix
@@ -645,8 +664,10 @@ class IntermediateFusionDatasetDAIR(Dataset):
                                    'processed_lidar': processed_lidar_torch_dict,
                                    'record_len': record_len,
                                    'pairwise_t_matrix': pairwise_t_matrix,
+                                   'anchor_box': anchor_box,
                                    'lidar_pose_clean': lidar_pose_clean,
-                                   'lidar_pose': lidar_pose})
+                                   'lidar_pose': lidar_pose,
+                                   'sample_idx': sample_idx})
 
         if self.visualize:
             origin_lidar = \
@@ -663,6 +684,12 @@ class IntermediateFusionDatasetDAIR(Dataset):
                 np.array(downsample_lidar_minimum(pcd_np_list=origin_lidar_i))
             origin_lidar_i = torch.from_numpy(origin_lidar_i)
             output_dict['ego'].update({'origin_lidar_i': origin_lidar_i})
+
+            origin_lidar_i_infra = \
+                np.array(downsample_lidar_minimum(pcd_np_list=origin_lidar_i_infra))
+            origin_lidar_i_infra = torch.from_numpy(origin_lidar_i_infra)
+            output_dict['ego'].update({'origin_lidar_i_infra': origin_lidar_i_infra})
+
         if self.kd_flag:
             teacher_processed_lidar_torch_dict = \
                 self.pre_processor.collate_batch(teacher_processed_lidar_list)
@@ -692,11 +719,11 @@ class IntermediateFusionDatasetDAIR(Dataset):
         # we all predict boxes in ego coord.
         pairwise_t_matrix = batch[0]['ego']['pairwise_t_matrix']
         transformation_matrix_torch = \
-            torch.from_numpy(pairwise_t_matrix[0,0]).float()
+            torch.from_numpy(pairwise_t_matrix[0,0]).float32()
         transformation_matrix_torch_10 = \
-            torch.from_numpy(pairwise_t_matrix[1,0]).float()
+            torch.from_numpy(pairwise_t_matrix[1,0]).float32()
         transformation_matrix_clean_torch = \
-            torch.from_numpy(np.identity(4)).float()
+            torch.from_numpy(np.identity(4)).float32()
 
         output_dict['ego'].update({'transformation_matrix':
                                        transformation_matrix_torch,

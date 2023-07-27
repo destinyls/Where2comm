@@ -97,15 +97,20 @@ def main_worker(local_rank, nprocs, opt):
         init_epoch, model = train_utils.load_saved_model(saved_path, model.module if distributed else model)
         scheduler = train_utils.setup_lr_schedular(hypes, optimizer, init_epoch=init_epoch)
     else:
+        if hypes['resume'] is not None:
+            model = train_utils.load_model(hypes['resume'], model.module if distributed else model)
         init_epoch = 0
         # if we train the model from scratch, we need to create a folder
-        # to save the model,
-        saved_path = train_utils.setup_train(hypes, local_rank)
+        # to save the model
+        if local_rank == 0:
+            saved_path = train_utils.setup_train(hypes, local_rank)
         # lr scheduler setup
         scheduler = train_utils.setup_lr_schedular(hypes, optimizer)
 
     # record training
-    writer = SummaryWriter(saved_path)
+    # record training
+    if local_rank == 0:
+        writer = SummaryWriter(saved_path)
 
     print('Training start')
     epoches = hypes['train_params']['epoches']
@@ -134,7 +139,7 @@ def main_worker(local_rank, nprocs, opt):
             # becomes a list, which containing all data from other cavs
             # as well
             batch_data['ego']['epoch'] = epoch
-            output_dict = model(batch_data['ego'])
+            output_dict = model(batch_data['ego'], opencood_train_dataset)
             # first argument is always your output dictionary,
             # second argument is always your label dictionary.
             final_loss, single_loss_i, single_loss_v = 0.0, 0.0, 0.0
@@ -186,7 +191,7 @@ def main_worker(local_rank, nprocs, opt):
 
                     batch_data = train_utils.to_local_rank(batch_data, local_rank)
                     batch_data['ego']['epoch'] = epoch
-                    ouput_dict = model(batch_data['ego'])
+                    ouput_dict = model(batch_data['ego'], opencood_train_dataset)
 
                     final_loss, single_loss_i, single_loss_v = 0.0, 0.0, 0.0
                     if 'psm' in output_dict.keys():

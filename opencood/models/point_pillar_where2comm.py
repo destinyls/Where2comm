@@ -171,6 +171,11 @@ class PointPillarWhere2comm(nn.Module):
         record_len = data_dict['record_len']
         pairwise_t_matrix = data_dict['pairwise_t_matrix']
         anchor_box = data_dict['anchor_box']
+        sample_idx = data_dict['sample_idx']
+
+        if 'origin_lidar' in data_dict.keys():
+            origin_lidar = data_dict['origin_lidar']
+            origin_lidar_i_infra = data_dict['origin_lidar_i_infra']
 
         batch_dict_v, batch_dict_i = self.split_data(voxel_features, voxel_coords, voxel_num_points, record_len)
         psm_single_v, rm_single_v, spatial_features_v, spatial_features_2d_v = self.model_vehicle(batch_dict_v)
@@ -192,7 +197,13 @@ class PointPillarWhere2comm(nn.Module):
             middle_data_dict = {'transformation_matrix': pairwise_t_matrix[i][0,0],
                                 'transformation_matrix_10': pairwise_t_matrix[i][0,0],
                                 'anchor_box': anchor_box[i],
+                                'sample_idx': sample_idx[i]
                                 }
+
+            if 'origin_lidar' in data_dict.keys():
+                middle_data_dict.update({'origin_lidar': origin_lidar[i]})
+                middle_data_dict.update({'origin_lidar_i_infra': origin_lidar_i_infra[i]})
+
             middle_data_dict_list.append(middle_data_dict)
         
         psm_single, spatial_features, spatial_features_2d = [], [], []

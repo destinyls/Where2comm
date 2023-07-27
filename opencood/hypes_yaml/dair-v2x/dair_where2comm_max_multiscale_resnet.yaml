@@ -5,6 +5,8 @@ root_dir: "datasets/dair-v2x-c/training/trainval.json"
 validate_dir: "datasets/dair-v2x-c/training/val.json"
 test_dir: "datasets/dair-v2x-c/training/val.json"
 
+resume: "pretrained_model/net_epoch69.pth"
+
 noise_setting:
   add_noise: False
   args: 
@@ -70,7 +72,7 @@ postprocess:
     neg_threshold: 0.45
     score_threshold: 0.2
   order: 'hwl' # hwl or lwh
-  selected_agent: 0 # 0 for vehicle or 1 for infra or 2 for fusion
+  selected_agent: 2 # 0 for vehicle or 1 for infra or 2 for fusion
   max_num: 100 # maximum number of objects in a single frame. use this number to make sure different frames has the same dimension in the same batch
   nms_thresh: 0.15
 
@@ -122,6 +124,7 @@ model:
 
     fusion_args:
       voxel_size: *voxel_size
+      lidar_range: *cav_lidar
       downsample_rate: 1
       in_channels: 256
       n_head: 8

@@ -8,6 +8,7 @@ Implementation of V2VNet Fusion
 """
 
 from turtle import update
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -15,7 +16,8 @@ import numpy as np
 
 from opencood.models.sub_modules.torch_transformation_utils import warp_affine_simple
 from opencood.models.comm_modules.where2comm import Communication
-
+from opencood.visualization import simple_vis
+from opencood.models.fuse_modules.gaussian import Gaussian
 
 class ScaledDotProductAttention(nn.Module):
     """
@@ -196,6 +198,8 @@ class Where2comm(nn.Module):
         
         self.agg_mode = args['agg_operator']['mode']
         self.multi_scale = args['multi_scale']
+
+        self.gaussian = Gaussian(args)
         if self.multi_scale:
             layer_nums = args['layer_nums']
             num_filters = args['num_filters']
@@ -293,6 +297,7 @@ class Where2comm(nn.Module):
                     # t_matrix[i, j]-> from i to j
                     t_matrix = pairwise_t_matrix[b][:N, :N, :, :]
                     node_features = batch_node_features[b]
+                    
                     C, H, W = node_features.shape[1:]
                     neighbor_feature = warp_affine_simple(node_features,
                                                     t_matrix[0, :, :, :],
@@ -328,10 +333,20 @@ class Where2comm(nn.Module):
             
             ############ 3. Fusion ####################################
             x_fuse = []
-            print("B: ")
             for b in range(B):
                 pred_box_infra, pred_score_infra = dataset.post_process(data_dict[b], output_dict[b], selected_agent=1, middle_post_process=True)
-
+                sample_idx = data_dict[b]['sample_idx']
+                '''
+                vis_save_path = os.path.join("demo", str(sample_idx.cpu().numpy()) + ".jpg")
+                simple_vis.visualize(pred_box_infra,
+                                    pred_box_infra,
+                                    data_dict[b]['origin_lidar_i_infra'],
+                                    [-100.8, -40, -3, 100.8, 40, 1],
+                                    vis_save_path,
+                                    method='bev',
+                                    left_hand=False,
+                                    vis_pred_box=True)
+                '''
                 # number of valid agent
                 N = record_len[b]
                 # (N,N,4,4)
@@ -339,6 +354,10 @@ class Where2comm(nn.Module):
                 
                 t_matrix = pairwise_t_matrix[b][:N, :N, :, :]
                 node_features = batch_node_features[b]
+
+                infra_features = node_features[0].unsqueeze(0)
+                gaussian_features = self.gaussian(pred_box_infra, infra_features, sample_idx)
+                node_features = torch.cat((node_features[0].unsqueeze(0), gaussian_features), dim=0)
                 if self.communication:
                     node_features = node_features * communication_masks[b]
                 neighbor_feature = warp_affine_simple(node_features,
