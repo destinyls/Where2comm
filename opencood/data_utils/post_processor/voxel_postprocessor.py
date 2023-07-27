@@ -470,7 +470,6 @@ class VoxelPostprocessor(BasePostprocessor):
                                            )
 
         pred_box3d_tensor = pred_box3d_tensor[keep_index]
-
         # select cooresponding score
         scores = scores[keep_index]
 

@@ -21,7 +21,7 @@ noise_setting:
 yaml_parser: "load_point_pillar_params"
 train_params:
   batch_size: &batch_size 6
-  epoches: 70
+  epoches: 100
   eval_freq: 2
   save_freq: 2
   max_cav: &max_cav 2
@@ -138,7 +138,7 @@ model:
       agg_operator:
         mode: 'MAX'
         feature_dim: 256
-      multi_scale: false
+      multi_scale: true
       layer_nums: *layer_nums
       num_filters: *num_filters
 

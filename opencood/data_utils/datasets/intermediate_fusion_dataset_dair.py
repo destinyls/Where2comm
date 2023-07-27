@@ -706,10 +706,9 @@ class IntermediateFusionDatasetDAIR(Dataset):
         output_dict = self.collate_batch_train(batch)
         if output_dict is None:
             return None
-
         # check if anchor box in the batch
         if batch[0]['ego']['anchor_box'] is not None:
-            output_dict['ego'].update({'anchor_box':
+            output_dict['ego'].update({'anchor_box_infer':
                 torch.from_numpy(np.array(
                     batch[0]['ego'][
                         'anchor_box']))})
@@ -719,11 +718,11 @@ class IntermediateFusionDatasetDAIR(Dataset):
         # we all predict boxes in ego coord.
         pairwise_t_matrix = batch[0]['ego']['pairwise_t_matrix']
         transformation_matrix_torch = \
-            torch.from_numpy(pairwise_t_matrix[0,0]).float32()
+            torch.from_numpy(pairwise_t_matrix[0,0]).float()
         transformation_matrix_torch_10 = \
-            torch.from_numpy(pairwise_t_matrix[1,0]).float32()
+            torch.from_numpy(pairwise_t_matrix[1,0]).float()
         transformation_matrix_clean_torch = \
-            torch.from_numpy(np.identity(4)).float32()
+            torch.from_numpy(np.identity(4)).float()
 
         output_dict['ego'].update({'transformation_matrix':
                                        transformation_matrix_torch,
@@ -738,6 +737,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
         })
 
         return output_dict
+
     
     def get_pairwise_transformation(self, base_data_dict, max_cav):
         """

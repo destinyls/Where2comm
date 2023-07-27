@@ -34,11 +34,13 @@ class Gaussian(nn.Module):
     def forward(self, pred_box_infra, infra_features, sample_idx):
         _, C, H, W = infra_features.shape
         device = infra_features.device
-        
         if pred_box_infra is None:
             return torch.zeros_like(infra_features)
+
         N = min(pred_box_infra.shape[0], 20)
-        assert N > 0
+        if N == 0:
+            return torch.zeros_like(infra_features)
+
         pred_box_infra = pred_box_infra[:N,:,:]
         
         l_corner, _ = torch.min(pred_box_infra, dim=1)
@@ -54,11 +56,9 @@ class Gaussian(nn.Module):
 
         l_corner = l_corner[mask]
         r_corner = r_corner[mask]
-        
         if center_points_3d.shape[0] == 0:
             select_features = torch.zeros([1, C, H, W], dtype=infra_features.dtype).to(device)
             return select_features
-
         center_points_3d_bev = torch.zeros([center_points_3d.shape[0], 2], dtype=center_points_3d.dtype).to(device)
         center_points_3d_bev[:, 0] = (center_points_3d[:, 0] - self.lidar_range[0]) / (self.voxel_size[0] * self.downsample_rate)
         center_points_3d_bev[:, 1] = (center_points_3d[:, 1] - self.lidar_range[1]) / (self.voxel_size[1] * self.downsample_rate)
@@ -80,11 +80,10 @@ class Gaussian(nn.Module):
         center_points_bev[:,4] = (r_corner[:,1] - self.lidar_range[1]) / (self.voxel_size[1] * self.downsample_rate)
         center_points_bev[:,0] = 0 # 只有一个batch
         
-        
         proj_rois = torch.cat([center_points_3d_bev - 2, center_points_3d_bev + 2], dim=-1)
         proj_rois = torch.cat([roi_id, proj_rois], dim=-1)
         center_points_features = self.roi_align(infra_features, proj_rois)
-        
+
         Y, X = torch.meshgrid([torch.arange(H, device=device), torch.arange(W, device=device)], indexing="ij") 
         gaussian_maps_list = []
         for i in range(N):
@@ -92,15 +91,20 @@ class Gaussian(nn.Module):
             gaussian_map = torch.exp((-(X - center_points_3d_bev[i][0])**2 - (Y - center_points_3d_bev[i][1])**2) / (5**2))
             gaussian_maps_list.append(gaussian_map)
         gaussian_maps = torch.stack(gaussian_maps_list, dim=0).unsqueeze(0).to(device)  #[1, N, H, W]
+        
         '''
         gaussian_maps_demo = torch.sum(torch.abs(gaussian_maps), dim=1).detach().cpu().numpy()[0] * 100
         cv2.imwrite(os.path.join("demo", "infra_features_demo_2_" + str(sample_idx.cpu().numpy()) + ".jpg"), gaussian_maps_demo)
         '''
+
+        '''
         center_points_features = center_points_features.transpose(0, 1).expand(C, N, H, W)  # [N, C, 1, 1] -> [C, N, H, W]
         select_features = (torch.sum(center_points_features * gaussian_maps, dim=1) / N ).unsqueeze(0)
-        assert not torch.isnan(select_features).any() and not torch.isinf(select_features).any()
-        
+        '''
+        # assert not torch.isnan(select_features).any() and not torch.isinf(select_features).any()
         gaussian_maps = torch.sum(gaussian_maps, dim=1).unsqueeze(0)
+        gaussian_maps = (gaussian_maps > 0).float()
         gaussian_maps = gaussian_maps.expand(1, C, H, W)
-
-        return gaussian_maps
+        select_features = infra_features * gaussian_maps
+        
+        return infra_features

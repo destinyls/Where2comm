@@ -354,10 +354,11 @@ class Where2comm(nn.Module):
                 
                 t_matrix = pairwise_t_matrix[b][:N, :N, :, :]
                 node_features = batch_node_features[b]
-
-                infra_features = node_features[0].unsqueeze(0)
+                '''
+                infra_features = node_features[1].unsqueeze(0)
                 gaussian_features = self.gaussian(pred_box_infra, infra_features, sample_idx)
                 node_features = torch.cat((node_features[0].unsqueeze(0), gaussian_features), dim=0)
+                '''
                 if self.communication:
                     node_features = node_features * communication_masks[b]
                 neighbor_feature = warp_affine_simple(node_features,

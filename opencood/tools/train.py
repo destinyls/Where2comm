@@ -215,7 +215,8 @@ def main_worker(local_rank, nprocs, opt):
             valid_ave_loss = statistics.mean(valid_ave_loss)
             print('At epoch %d, the validation loss is %f' % (epoch,
                                                               valid_ave_loss))
-            writer.add_scalar('Validate_Loss', valid_ave_loss, epoch)
+            if local_rank == 0:
+                writer.add_scalar('Validate_Loss', valid_ave_loss, epoch)
 
         if epoch % hypes['train_params']['save_freq'] == 0 and local_rank == 0:
             torch.save(model.state_dict(),
