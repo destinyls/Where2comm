@@ -134,7 +134,7 @@ def main_worker(local_rank, nprocs, opt):
             # becomes a list, which containing all data from other cavs
             # as well
             batch_data['ego']['epoch'] = epoch
-            output_dict = model(batch_data['ego'])
+            output_dict = model(batch_data['ego'], opencood_train_dataset)
             # first argument is always your output dictionary,
             # second argument is always your label dictionary.
             final_loss, single_loss_i, single_loss_v = 0.0, 0.0, 0.0
@@ -186,7 +186,7 @@ def main_worker(local_rank, nprocs, opt):
 
                     batch_data = train_utils.to_local_rank(batch_data, local_rank)
                     batch_data['ego']['epoch'] = epoch
-                    ouput_dict = model(batch_data['ego'])
+                    ouput_dict = model(batch_data['ego'], opencood_train_dataset)
 
                     final_loss, single_loss_i, single_loss_v = 0.0, 0.0, 0.0
                     if 'psm' in output_dict.keys():
@@ -223,7 +223,7 @@ def main_worker(local_rank, nprocs, opt):
     run_test = True
     if run_test:
         fusion_method = opt.fusion_method
-        cmd = f"python /GPFS/data/yhu/code/OpenCOOD/opencood/tools/inference.py --model_dir {saved_path} --fusion_method {fusion_method}"
+        # cmd = f"python /GPFS/data/yhu/code/OpenCOOD/opencood/tools/inference.py --model_dir {saved_path} --fusion_method {fusion_method}"
         print(f"Running command: {cmd}")
         os.system(cmd)
 

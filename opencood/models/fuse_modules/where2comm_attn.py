@@ -16,6 +16,8 @@ import numpy as np
 from opencood.models.sub_modules.torch_transformation_utils import warp_affine_simple
 from opencood.models.comm_modules.where2comm import Communication
 
+from opencood.visualization import simple_vis
+from opencood.models.fuse_modules.gaussian import Gaussian
 
 class ScaledDotProductAttention(nn.Module):
     """
@@ -196,6 +198,7 @@ class Where2comm(nn.Module):
         
         self.agg_mode = args['agg_operator']['mode']
         self.multi_scale = args['multi_scale']
+        self.gaussian = Gaussian(args)
         if self.multi_scale:
             layer_nums = args['layer_nums']
             num_filters = args['num_filters']
@@ -230,7 +233,7 @@ class Where2comm(nn.Module):
         split_x = torch.tensor_split(x, cum_sum_len[:-1].cpu())
         return split_x
 
-    def forward(self, x, rm, record_len, pairwise_t_matrix, backbone=None, heads=None):
+    def forward(self, x, rm, record_len, pairwise_t_matrix, dataset, data_dict, output_dict, backbone=None, heads=None):
         """
         Fusion forwarding.
         

@@ -389,6 +389,99 @@ class VoxelPostprocessor(BasePostprocessor):
         # return pred_box3d_tensor, scores, count
         return pred_box3d_tensor, scores
 
+    def post_process_train(self, data_dict, output_dict, selected_agent):
+        # the final bounding box list
+        pred_box3d_list = []
+        pred_box2d_list = []
+
+        # (H, W, anchor_num, 7)
+        anchor_box = data_dict['anchor_box']
+
+        # classification probability
+        if selected_agent == 0:
+            transformation_matrix = data_dict['transformation_matrix']
+            prob = output_dict['psm_single_v'].unsqueeze(0)
+            reg = output_dict['rm_single_v'].unsqueeze(0)
+        elif selected_agent == 1:
+            transformation_matrix = data_dict['transformation_matrix_10']
+            prob = output_dict['psm_single_i'].unsqueeze(0)
+            reg = output_dict['rm_single_i'].unsqueeze(0)
+        else: 
+            print("no psm & rm")
+
+        prob = F.sigmoid(prob.permute(0, 2, 3, 1))
+        prob = prob.reshape(1, -1)
+
+        # convert regression map back to bounding box
+        batch_box3d = self.delta_to_boxes3d(reg, anchor_box)
+        mask = \
+            torch.gt(prob, self.params['target_args']['score_threshold'])
+        mask = mask.view(1, -1)
+        mask_reg = mask.unsqueeze(2).repeat(1, 1, 7)
+
+        # during validation/testing, the batch size should be 1
+        assert batch_box3d.shape[0] == 1
+        boxes3d = torch.masked_select(batch_box3d[0],
+                                        mask_reg[0]).view(-1, 7)
+        scores = torch.masked_select(prob[0], mask[0])
+
+        # convert output to bounding box
+        if len(boxes3d) != 0:
+            # (N, 8, 3)
+            boxes3d_corner = \
+                box_utils.boxes_to_corners_3d_baseline(boxes3d,
+                                                order=self.params['order'])
+            # STEP 2
+            # (N, 8, 3)
+            projected_boxes3d = \
+                box_utils.project_box3d(boxes3d_corner,
+                                        transformation_matrix)
+            # convert 3d bbx to 2d, (N,4)
+            projected_boxes2d = \
+                box_utils.corner_to_standup_box_torch(projected_boxes3d)
+            # (N, 5)
+            boxes2d_score = \
+                torch.cat((projected_boxes2d, scores.unsqueeze(1)), dim=1)
+
+            pred_box2d_list.append(boxes2d_score)
+            pred_box3d_list.append(projected_boxes3d)
+
+        if len(pred_box2d_list) ==0 or len(pred_box3d_list) == 0:
+            return None, None
+        # shape: (N, 5)
+        pred_box2d_list = torch.vstack(pred_box2d_list)
+        # scores
+        scores = pred_box2d_list[:, -1]
+        # predicted 3d bbx
+        pred_box3d_tensor = torch.vstack(pred_box3d_list)
+        # remove large bbx
+        keep_index_1 = box_utils.remove_large_pred_bbx(pred_box3d_tensor)
+        keep_index_2 = box_utils.remove_bbx_abnormal_z(pred_box3d_tensor)
+        keep_index = torch.logical_and(keep_index_1, keep_index_2)
+
+        pred_box3d_tensor = pred_box3d_tensor[keep_index]
+        scores = scores[keep_index]
+
+        # STEP3
+        # nms
+        keep_index = box_utils.nms_rotated(pred_box3d_tensor,
+                                           scores,
+                                           self.params['nms_thresh']
+                                           )
+
+        pred_box3d_tensor = pred_box3d_tensor[keep_index]
+        # select cooresponding score
+        scores = scores[keep_index]
+
+        # filter out the prediction out of the range.
+        mask = \
+            box_utils.get_mask_for_boxes_within_range_torch(pred_box3d_tensor, self.params['gt_range'])
+        pred_box3d_tensor = pred_box3d_tensor[mask, :, :]
+        scores = scores[mask]
+
+        assert scores.shape[0] == pred_box3d_tensor.shape[0]
+        return pred_box3d_tensor, scores
+
     @staticmethod
     def delta_to_boxes3d(deltas, anchors):
         """
