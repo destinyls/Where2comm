@@ -105,13 +105,15 @@ def load_model(saved_path, model):
     state_dict = {}
     # convert data_parallal to model
     for k in state_dict_:
+        if 'model_infra' not in k:
+            continue
         if k.startswith('module') and not k.startswith('module_list'):
             state_dict[k[7:]] = state_dict_[k]
         else:
             state_dict[k] = state_dict_[k]
-    
-    model_state_dict = model.state_dict()
+    print("state_dict: ", state_dict.keys())
 
+    model_state_dict = model.state_dict()
     for k in state_dict:
         if k in model_state_dict:
             if state_dict[k].shape != model_state_dict[k].shape:
@@ -125,6 +127,7 @@ def load_model(saved_path, model):
         if not (k in state_dict):
             print('No param {}.'.format(k))
             state_dict[k] = model_state_dict[k]
+
     model.load_state_dict(state_dict, strict=False)
     return model
 

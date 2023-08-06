@@ -97,6 +97,8 @@ def main_worker(local_rank, nprocs, opt):
         init_epoch, model = train_utils.load_saved_model(saved_path, model.module if distributed else model)
         scheduler = train_utils.setup_lr_schedular(hypes, optimizer, init_epoch=init_epoch)
     else:
+        if hypes['resume'] is not None:
+            model = train_utils.load_model(hypes['resume'], model.module if distributed else model)
         init_epoch = 0
         # if we train the model from scratch, we need to create a folder
         # to save the model,
@@ -223,7 +225,7 @@ def main_worker(local_rank, nprocs, opt):
     run_test = True
     if run_test:
         fusion_method = opt.fusion_method
-        # cmd = f"python /GPFS/data/yhu/code/OpenCOOD/opencood/tools/inference.py --model_dir {saved_path} --fusion_method {fusion_method}"
+        cmd = f"python /GPFS/data/yhu/code/OpenCOOD/opencood/tools/inference.py --model_dir {saved_path} --fusion_method {fusion_method}"
         print(f"Running command: {cmd}")
         os.system(cmd)
 

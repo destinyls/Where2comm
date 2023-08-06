@@ -264,6 +264,14 @@ class Where2comm(nn.Module):
         pairwise_t_matrix[...,1,2] = pairwise_t_matrix[...,1,2] / (self.downsample_rate * self.discrete_ratio * H) * 2
 
         if self.multi_scale:
+            pred_box_infra_list, pred_score_infra_list, sample_idx_list = [], [], []
+            for b in range(B):
+                pred_box_infra, pred_score_infra = dataset.post_process(data_dict[b], output_dict[b], selected_agent=1, middle_post_process=True)
+                sample_idx = data_dict[b]['sample_idx']
+                pred_box_infra_list.append(pred_box_infra)
+                pred_score_infra_list.append(pred_score_infra)
+                sample_idx_list.append(sample_idx)
+
             ups = []
             # backbone.__dict__()
             with_resnet = True if hasattr(backbone, 'resnet') else False
@@ -290,17 +298,23 @@ class Where2comm(nn.Module):
                 ############ 3. Fusion ####################################
                 x_fuse = []
                 for b in range(B):
+                    
                     # number of valid agent
                     N = record_len[b]
                     # (N,N,4,4)
                     # t_matrix[i, j]-> from i to j
                     t_matrix = pairwise_t_matrix[b][:N, :N, :, :]
                     node_features = batch_node_features[b]
+                    '''
+                    pred_box_infra, pred_score_infra, sample_idx = pred_box_infra_list[b], pred_score_infra_list[b], sample_idx_list[b]
+                    gaussian_features = self.gaussian(pred_box_infra, torch.zeros_like(node_features[1].unsqueeze(0)), i, sample_idx)
+                    '''
                     C, H, W = node_features.shape[1:]
                     neighbor_feature = warp_affine_simple(node_features,
                                                     t_matrix[0, :, :, :],
                                                     (H, W))
-                    x_fuse.append(self.fuse_modules[i](neighbor_feature))
+                    fuse_feature = self.fuse_modules[i](neighbor_feature)
+                    x_fuse.append(fuse_feature)
                 x_fuse = torch.stack(x_fuse)
 
                 ############ 4. Deconv ####################################

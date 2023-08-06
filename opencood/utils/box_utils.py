@@ -172,8 +172,8 @@ def get_3d_8points(obj_size, yaw_lidar, center_lidar):
 def boxes_to_corners_3d_baseline(boxes3d, order):
     boxes3d, is_numpy = common_utils.check_numpy_to_torch(boxes3d)
     if order == 'hwl':
-        boxes3d = boxes3d[:, [0, 1, 2, 5, 4, 3, 6]]
-    boxes3d = boxes3d.cpu().numpy()
+        boxes3d = boxes3d[:, [0, 1, 2, 5, 4, 3, 6]]    
+    boxes3d = boxes3d.detach().cpu().numpy().astype(np.float)
     corners3d_list = []
     for idx in range(boxes3d.shape[0]):
         box3d = boxes3d[idx]

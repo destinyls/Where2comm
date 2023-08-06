@@ -1,5 +1,6 @@
 import os
 import cv2
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -30,18 +31,17 @@ class Gaussian(nn.Module):
         self.gaussian_filter.weight.data = torch.Tensor(gaussian_kernel).to(self.gaussian_filter.weight.device).unsqueeze(0).unsqueeze(0)
         self.gaussian_filter.bias.data.zero_()
 
-    def forward(self, pred_box_infra, infra_features, sample_idx):
+    def forward(self, pred_box_infra, infra_features, level, sample_idx):
+        downsample_rate = self.downsample_rate * math.pow(2, level)
         _, C, H, W = infra_features.shape
         device = infra_features.device
         if pred_box_infra is None:
             return torch.zeros_like(infra_features)
-
         N = min(pred_box_infra.shape[0], 20)
         if N == 0:
             return torch.zeros_like(infra_features)
 
         pred_box_infra = pred_box_infra[:N,:,:]
-        
         l_corner, _ = torch.min(pred_box_infra, dim=1)
         r_corner, _ = torch.max(pred_box_infra, dim=1)
         center_points_3d = torch.mean(pred_box_infra, dim=1)
@@ -59,38 +59,15 @@ class Gaussian(nn.Module):
             select_features = torch.zeros([1, C, H, W], dtype=infra_features.dtype).to(device)
             return select_features
         center_points_3d_bev = torch.zeros([center_points_3d.shape[0], 2], dtype=center_points_3d.dtype).to(device)
-        center_points_3d_bev[:, 0] = (center_points_3d[:, 0] - self.lidar_range[0]) / (self.voxel_size[0] * self.downsample_rate)
-        center_points_3d_bev[:, 1] = (center_points_3d[:, 1] - self.lidar_range[1]) / (self.voxel_size[1] * self.downsample_rate)
-        roi_id = center_points_3d_bev.new_zeros((center_points_3d_bev.shape[0],1))
-        
-        # left and right corner points [[l_x, l_y], [r_x, r_y]]
-        corner_points_bev = torch.zeros([center_points_3d.shape[0], 2, 2], dtype=center_points_3d.dtype).to(device)
-        corner_points_bev[:,0,0] = (l_corner[:,0] - self.lidar_range[0]) / (self.voxel_size[0] * self.downsample_rate)
-        corner_points_bev[:,0,1] = (l_corner[:,1] - self.lidar_range[1]) / (self.voxel_size[1] * self.downsample_rate)
-        corner_points_bev[:,1,0] = (r_corner[:,0] - self.lidar_range[0]) / (self.voxel_size[0] * self.downsample_rate)
-        corner_points_bev[:,1,1] = (r_corner[:,1] - self.lidar_range[1]) / (self.voxel_size[1] * self.downsample_rate)
-        bev_size = (corner_points_bev[:,1,1] - corner_points_bev[:,0,1]) * \
-                            (corner_points_bev[:,1,0] - corner_points_bev[:,0,0])
-        
-        center_points_bev = torch.zeros([center_points_3d.shape[0], 5], dtype=center_points_3d.dtype).to(device)
-        center_points_bev[:,1] = (l_corner[:,0] - self.lidar_range[0]) / (self.voxel_size[0] * self.downsample_rate)
-        center_points_bev[:,2] = (l_corner[:,1] - self.lidar_range[1]) / (self.voxel_size[1] * self.downsample_rate)
-        center_points_bev[:,3] = (r_corner[:,0] - self.lidar_range[0]) / (self.voxel_size[0] * self.downsample_rate)
-        center_points_bev[:,4] = (r_corner[:,1] - self.lidar_range[1]) / (self.voxel_size[1] * self.downsample_rate)
-        center_points_bev[:,0] = 0 # 只有一个batch
-        
-        proj_rois = torch.cat([center_points_3d_bev - 2, center_points_3d_bev + 2], dim=-1)
-        proj_rois = torch.cat([roi_id, proj_rois], dim=-1)
-        center_points_features = self.roi_align(infra_features, proj_rois)
+        center_points_3d_bev[:, 0] = (center_points_3d[:, 0] - self.lidar_range[0]) / (self.voxel_size[0] * downsample_rate)
+        center_points_3d_bev[:, 1] = (center_points_3d[:, 1] - self.lidar_range[1]) / (self.voxel_size[1] * downsample_rate)
 
         Y, X = torch.meshgrid([torch.arange(H, device=device), torch.arange(W, device=device)], indexing="ij") 
         gaussian_maps_list = []
         for i in range(N):
-            # gaussian_map = torch.exp((-(X - center_points_3d_bev[i][0])**2 - (Y - center_points_3d_bev[i][1])**2) / (2*bev_size[i]**2))
             gaussian_map = torch.exp((-(X - center_points_3d_bev[i][0])**2 - (Y - center_points_3d_bev[i][1])**2) / (5**2))
             gaussian_maps_list.append(gaussian_map)
         gaussian_maps = torch.stack(gaussian_maps_list, dim=0).unsqueeze(0).to(device)  #[1, N, H, W]
-        
         '''
         gaussian_maps_demo = torch.sum(torch.abs(gaussian_maps), dim=1).detach().cpu().numpy()[0] * 100
         cv2.imwrite(os.path.join("demo", "infra_features_demo_2_" + str(sample_idx.cpu().numpy()) + ".jpg"), gaussian_maps_demo)
@@ -103,7 +80,5 @@ class Gaussian(nn.Module):
         # assert not torch.isnan(select_features).any() and not torch.isinf(select_features).any()
         gaussian_maps = torch.sum(gaussian_maps, dim=1).unsqueeze(0)
         gaussian_maps = (gaussian_maps > 0).float()
-        gaussian_maps = gaussian_maps.expand(1, C, H, W)
-        select_features = infra_features * gaussian_maps
-        
-        return infra_features
+        gaussian_maps = gaussian_maps.expand(1, C, H, W)        
+        return gaussian_maps
