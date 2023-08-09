@@ -65,14 +65,16 @@ class Gaussian(nn.Module):
         Y, X = torch.meshgrid([torch.arange(H, device=device), torch.arange(W, device=device)], indexing="ij") 
         gaussian_maps_list = []
         for i in range(N):
-            gaussian_map = torch.exp((-(X - center_points_3d_bev[i][0])**2 - (Y - center_points_3d_bev[i][1])**2) / (5**2))
+            init_sigma = 5
+            sigma = init_sigma * math.pow(2, -1 * level)
+            gaussian_map = torch.exp((-(X - center_points_3d_bev[i][0])**2 - (Y - center_points_3d_bev[i][1])**2) / (sigma**2))
             gaussian_maps_list.append(gaussian_map)
         gaussian_maps = torch.stack(gaussian_maps_list, dim=0).unsqueeze(0).to(device)  #[1, N, H, W]
+
         '''
         gaussian_maps_demo = torch.sum(torch.abs(gaussian_maps), dim=1).detach().cpu().numpy()[0] * 100
         cv2.imwrite(os.path.join("demo", "infra_features_demo_2_" + str(sample_idx.cpu().numpy()) + ".jpg"), gaussian_maps_demo)
         '''
-
         '''
         center_points_features = center_points_features.transpose(0, 1).expand(C, N, H, W)  # [N, C, 1, 1] -> [C, N, H, W]
         select_features = (torch.sum(center_points_features * gaussian_maps, dim=1) / N ).unsqueeze(0)
@@ -80,5 +82,8 @@ class Gaussian(nn.Module):
         # assert not torch.isnan(select_features).any() and not torch.isinf(select_features).any()
         gaussian_maps = torch.sum(gaussian_maps, dim=1).unsqueeze(0)
         gaussian_maps = (gaussian_maps > 0).float()
-        gaussian_maps = gaussian_maps.expand(1, C, H, W)        
-        return gaussian_maps
+        gaussian_maps = gaussian_maps.expand(1, C, H, W) 
+
+        # print("ratio: ", torch.sum(gaussian_maps) / (C * H * W))
+        gaussian_maps_all = torch.cat((torch.ones_like(gaussian_maps), gaussian_maps), dim=0)    
+        return gaussian_maps_all, gaussian_maps
