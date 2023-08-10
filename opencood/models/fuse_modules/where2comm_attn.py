@@ -328,6 +328,7 @@ class Where2comm(nn.Module):
                     ups.append(backbone.deblocks[i](x_fuse))
                 else:
                     ups.append(x_fuse)
+                    
                 
             if len(ups) > 1:
                 x_fuse = torch.cat(ups, dim=1)
