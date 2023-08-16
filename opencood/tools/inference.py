@@ -90,6 +90,7 @@ def evaluation(model, data_loader, opt, opencood_dataset, device, test_inference
     result_stat = {0.3: {'tp': [], 'fp': [], 'gt': 0},
                    0.5: {'tp': [], 'fp': [], 'gt': 0},
                    0.7: {'tp': [], 'fp': [], 'gt': 0}}
+    evaluator = Evaluator(["car"])
     total_comm_rates = []
     # total_box = []
     for i, batch_data in tqdm(enumerate(data_loader)):
@@ -129,6 +130,13 @@ def evaluation(model, data_loader, opt, opencood_dataset, device, test_inference
             if pred_box_tensor is None:
                 continue
             if not test_inference:
+                '''
+                pred_dict, gt_dict = baseline_pkl2dict(frame_id)
+                pred_dict = result2dict(pred_box_tensor, pred_score)
+                gt_dict = result2dict(pred_box_tensor, None)
+                evaluator.add_frame(pred_dict, gt_dict)
+                '''
+
                 eval_utils.caluclate_tp_fp(pred_box_tensor,
                                         pred_score,
                                         gt_box_tensor,
@@ -192,6 +200,12 @@ def evaluation(model, data_loader, opt, opencood_dataset, device, test_inference
             msg = 'Epoch: {} | AP @0.3: {:.04f} | AP @0.5: {:.04f} | AP @0.7: {:.04f} | comm_rate: {:.06f} | comm_thre: {:.04f}\n'.format(epoch_id, ap_30, ap_50, ap_70, comm_rates, opt.comm_thre)
         f.write(msg)
         print(msg)
+
+    '''
+    print("official metric")
+    evaluator.print_ap("3d")
+    evaluator.print_ap("bev")
+    '''
 
 def main():
     opt = test_parser()

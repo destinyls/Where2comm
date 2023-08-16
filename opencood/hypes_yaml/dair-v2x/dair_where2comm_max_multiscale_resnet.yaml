@@ -21,8 +21,8 @@ yaml_parser: "load_point_pillar_params"
 train_params:
   batch_size: &batch_size 6
   epoches: 200
-  eval_freq: 2
-  save_freq: 2
+  eval_freq: 5
+  save_freq: 5
   max_cav: &max_cav 2
 
 

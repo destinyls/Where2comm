@@ -199,7 +199,7 @@ def compute_type(gt_annos, pred_annos, cla, iou_threshold, view):
             pred_anno = pred_annos[i]
             try:
                 iou, iou_2d = box3d_iou(gt_anno["box"][perm_label], pred_anno["box"][perm_pred])
-                print(iou, iou_2d)
+                # print(iou, iou_2d)
             except Exception:
                 iou, iou_2d = 0, 0
                 # print("gt=", gt_anno['box'][perm_label], "pred=", pred_anno['box'][perm_pred])
@@ -249,7 +249,7 @@ def compute_ap(pred_annos, num_gt):
 
 class Evaluator(object):
     def __init__(self, pred_classes):
-        print("pred_classes: ", pred_classes)
+        # print("pred_classes: ", pred_classes)
         self.pred_classes = pred_classes
         self.all_preds = {"3d": {}, "bev": {}}
         self.gt_num = {}

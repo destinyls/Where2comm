@@ -31,6 +31,11 @@ class Gaussian(nn.Module):
         self.gaussian_filter.weight.data = torch.Tensor(gaussian_kernel).to(self.gaussian_filter.weight.device).unsqueeze(0).unsqueeze(0)
         self.gaussian_filter.bias.data.zero_()
 
+    def random_zero_out(self, tensor, p=0.5):
+        mask = torch.rand(tensor.shape) > p
+        tensor[mask] = 0
+        return tensor
+
     def forward(self, pred_box_infra, infra_features, level, sample_idx):
         downsample_rate = self.downsample_rate * math.pow(2, level)
         _, C, H, W = infra_features.shape
@@ -65,7 +70,7 @@ class Gaussian(nn.Module):
         Y, X = torch.meshgrid([torch.arange(H, device=device), torch.arange(W, device=device)], indexing="ij") 
         gaussian_maps_list = []
         for i in range(N):
-            init_sigma = 3
+            init_sigma = 1
             sigma = init_sigma * math.pow(2, -1 * level)
             gaussian_map = torch.exp((-(X - center_points_3d_bev[i][0])**2 - (Y - center_points_3d_bev[i][1])**2) / (sigma**2))
             gaussian_maps_list.append(gaussian_map)
@@ -80,6 +85,17 @@ class Gaussian(nn.Module):
         select_features = (torch.sum(center_points_features * gaussian_maps, dim=1) / N ).unsqueeze(0)
         '''
         # assert not torch.isnan(select_features).any() and not torch.isinf(select_features).any()
+        
         gaussian_maps = torch.sum(gaussian_maps, dim=1).unsqueeze(0)
+        if gaussian_maps.shape[2] == 100 and False:
+            gaussian_maps_demo = gaussian_maps[0].detach().cpu().numpy()[0] * 100            
+            cv2.imwrite(os.path.join("demo", "infra_features_demo_" + str(sample_idx.cpu().numpy()) + ".jpg"), gaussian_maps_demo)
+        # gaussian_maps = self.random_zero_out(gaussian_maps, p=0.1)
+        if gaussian_maps.shape[2] == 100 and False:
+            gaussian_maps_demo = gaussian_maps[0].detach().cpu().numpy()[0] * 100
+            cv2.imwrite(os.path.join("demo", "infra_features_demo_zero_out_" + str(sample_idx.cpu().numpy()) + ".jpg"), gaussian_maps_demo)
+        # print("1. ", torch.sum(gaussian_maps) / (1 * H * W))
+        gaussian_maps = (gaussian_maps > 0).float()
         gaussian_maps = gaussian_maps.expand(1, C, H, W) 
+        # print("2. ", torch.sum(gaussian_maps) / (C * H * W))
         return gaussian_maps
