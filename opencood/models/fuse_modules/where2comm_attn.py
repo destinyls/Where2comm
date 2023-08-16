@@ -305,20 +305,25 @@ class Where2comm(nn.Module):
                     # t_matrix[i, j]-> from i to j
                     t_matrix = pairwise_t_matrix[b][:N, :N, :, :]
                     node_features = batch_node_features[b]
+                    '''
                     pred_box_infra, pred_score_infra, sample_idx = pred_box_infra_list[b], pred_score_infra_list[b], sample_idx_list[b]
-                    gaussian_maps = self.gaussian(pred_box_infra, torch.zeros_like(node_features[1].unsqueeze(0)), i, sample_idx)                    
-                    gaussian_maps_all = torch.cat((torch.ones_like(gaussian_maps), (gaussian_maps > 0).float()), dim=0)  
-                    node_features = node_features * gaussian_maps_all
-
+                    gaussian_maps = self.gaussian(pred_box_infra, torch.zeros_like(node_features[1].unsqueeze(0)), i, sample_idx)                           
+                    gaussian_maps_all = torch.cat((torch.ones_like(gaussian_maps), gaussian_maps), dim=0)  
+                    node_features = node_features * (gaussian_maps_all > 0).float()
                     C, H, W = node_features.shape[1:]
                     neighbor_feature = warp_affine_simple(node_features,
                                                     t_matrix[0, :, :, :],
                                                     (H, W))
                     fuse_feature = self.fuse_modules[i](neighbor_feature)
-
+                    '''
+                    
+                    fuse_feature = node_features[0]
+                    '''
                     fuse_feature = torch.cat((fuse_feature.unsqueeze(0), gaussian_maps), dim=0)
                     fuse_feature = warp_affine_simple(fuse_feature, t_matrix[0, :, :, :], (H, W))
                     fuse_feature = self.fuse_modules[i](fuse_feature)
+                    '''
+
                     # print("fuse_feature: ", fuse_feature.shape, gaussian_maps.shape)
                     x_fuse.append(fuse_feature)
                 x_fuse = torch.stack(x_fuse)
@@ -328,7 +333,7 @@ class Where2comm(nn.Module):
                     ups.append(backbone.deblocks[i](x_fuse))
                 else:
                     ups.append(x_fuse)
-                    
+
                 
             if len(ups) > 1:
                 x_fuse = torch.cat(ups, dim=1)
