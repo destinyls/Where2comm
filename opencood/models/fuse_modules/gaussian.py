@@ -90,8 +90,8 @@ class Gaussian(nn.Module):
         if gaussian_maps.shape[2] == 100 and False:
             gaussian_maps_demo = gaussian_maps[0].detach().cpu().numpy()[0] * 100            
             cv2.imwrite(os.path.join("demo", "infra_features_demo_" + str(sample_idx.cpu().numpy()) + ".jpg"), gaussian_maps_demo)
-        gaussian_maps[:, :, :, :] = 1.0
-        gaussian_maps = self.random_zero_out(gaussian_maps, p=0.05)
+        # gaussian_maps[:, :, :, :] = 1.0
+        # gaussian_maps = self.random_zero_out(gaussian_maps, p=0.05)
         if gaussian_maps.shape[2] == 100 and False:
             gaussian_maps_demo = gaussian_maps[0].detach().cpu().numpy()[0] * 100
             cv2.imwrite(os.path.join("demo", "infra_features_demo_zero_out_" + str(sample_idx.cpu().numpy()) + ".jpg"), gaussian_maps_demo)

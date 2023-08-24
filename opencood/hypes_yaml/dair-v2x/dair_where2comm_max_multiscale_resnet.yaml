@@ -1,7 +1,7 @@
 name: dair_where2comm_max_multiscale_resnet
 
 data_dir: "datasets/dair-v2x-c/training"
-root_dir: "datasets/dair-v2x-c/training/trainval.json"
+root_dir: "datasets/dair-v2x-c/training/train.json"
 validate_dir: "datasets/dair-v2x-c/training/val.json"
 test_dir: "datasets/dair-v2x-c/training/val.json"
 resume: "pretrained_model/net_epoch115.pth"
@@ -20,7 +20,7 @@ noise_setting:
 yaml_parser: "load_point_pillar_params"
 train_params:
   batch_size: &batch_size 6
-  epoches: 70
+  epoches: 80
   eval_freq: 5
   save_freq: 5
   max_cav: &max_cav 2
