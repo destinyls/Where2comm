@@ -315,6 +315,7 @@ class Where2comm(nn.Module):
                                                     t_matrix[0, :, :, :],
                                                     (H, W))
                     fuse_feature = self.fuse_modules[i](neighbor_feature)
+                    
                     # fuse_feature = node_features[0]
                     fuse_feature = torch.cat((fuse_feature.unsqueeze(0), gaussian_maps), dim=0)
                     fuse_feature = warp_affine_simple(fuse_feature, t_matrix[0, :, :, :], (H, W))
