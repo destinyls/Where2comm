@@ -8,6 +8,7 @@ Implementation of V2VNet Fusion
 """
 
 from turtle import update
+import cv2
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -18,6 +19,7 @@ from opencood.models.comm_modules.where2comm import Communication
 
 from opencood.visualization import simple_vis
 from opencood.models.fuse_modules.gaussian import Gaussian
+from opencood.models.fuse_modules.models_mae import mae_vit_custom_patch1_dec512d8b
 
 class ScaledDotProductAttention(nn.Module):
     """
@@ -188,6 +190,7 @@ class Where2comm(nn.Module):
 
         self.communication = False
         self.round = 1
+        self.multi_scale_map = {0: [100, 252, 64], 1: [50, 126, 128], 2: [25, 63, 256]} # HWC
         if 'communication' in args:
             self.communication = True
             self.naive_communication = Communication(args['communication'])
@@ -204,6 +207,7 @@ class Where2comm(nn.Module):
             num_filters = args['num_filters']
             self.num_levels = len(layer_nums)
             self.fuse_modules = nn.ModuleList()
+            self.mae_modules = nn.ModuleList()
             for idx in range(self.num_levels):
                 if self.agg_mode == 'ATTEN':
                     fuse_network = AttenFusion(num_filters[idx])
@@ -216,6 +220,9 @@ class Where2comm(nn.Module):
                                                 with_spe=args['agg_operator']['with_spe'], 
                                                 with_scm=args['agg_operator']['with_scm'])
                 self.fuse_modules.append(fuse_network)
+                HWC = self.multi_scale_map[idx]
+                max_hw = max(HWC[0], HWC[1])
+                self.mae_modules.append(mae_vit_custom_patch1_dec512d8b(img_size=max_hw, patch_size=int(max_hw / 60), in_chans=HWC[2], norm_pix_loss=False))
         else:
             if self.agg_mode == 'ATTEN':
                 self.fuse_modules = AttenFusion(args['agg_operator']['feature_dim'])
@@ -278,6 +285,7 @@ class Where2comm(nn.Module):
             if with_resnet:
                 feats = backbone.resnet(x)
             
+            loss_mae = None
             for i in range(self.num_levels):
                 x = feats[i] if with_resnet else backbone.blocks[i](x)
 
@@ -298,18 +306,39 @@ class Where2comm(nn.Module):
                 ############ 3. Fusion ####################################
                 x_fuse = []
                 for b in range(B):
-                    
                     # number of valid agent
                     N = record_len[b]
                     # (N,N,4,4)
                     # t_matrix[i, j]-> from i to j
                     t_matrix = pairwise_t_matrix[b][:N, :N, :, :]
                     node_features = batch_node_features[b]
-                    
                     pred_box_infra, pred_score_infra, sample_idx = pred_box_infra_list[b], pred_score_infra_list[b], sample_idx_list[b]
-                    gaussian_maps, gaussian_maps_masked = self.gaussian(pred_box_infra, torch.zeros_like(node_features[1].unsqueeze(0)), i, sample_idx)                           
-                    gaussian_maps_all = torch.cat((torch.ones_like(gaussian_maps_masked), gaussian_maps_masked), dim=0)  
-                    node_features = node_features * (gaussian_maps_all > 0).float()
+                    gaussian_maps = self.gaussian(pred_box_infra, torch.zeros_like(node_features[1].unsqueeze(0)), i, sample_idx)                           
+            
+                    veh_features, infra_features = node_features[0].unsqueeze(0), node_features[1].unsqueeze(0)
+                    infra_features = infra_features * (gaussian_maps > 0).float()
+                    
+                    ''' mae restruction '''
+                    HWC = self.multi_scale_map[i]
+                    max_hw, min_hw = max(HWC[0], HWC[1]), min(HWC[0], HWC[1])
+                    padding_infra_features = torch.zeros((infra_features.shape[0], infra_features.shape[1], max_hw - min_hw, max_hw), dtype=infra_features.dtype, device=infra_features.device)
+                    padding_infra_features = torch.cat((infra_features, padding_infra_features), dim=2)
+                    pred, mask = self.mae_modules[i](padding_infra_features, mask_ratio=0.75)
+                    mask = self.mae_modules[i].unpatchify(mask.unsqueeze(-1).repeat(1, 1, int(self.mae_modules[i].patch_embed.patch_size[0])**2))
+                    mask_mae = mask[:, :, :min_hw, :]
+                    mask[:, :, min_hw:, :] = 0.0
+                    mask = self.mae_modules[i].patchify(mask)[:, :, 0]
+                    
+                    if self.training and False:
+                        if loss_mae is None:
+                            loss_mae = self.mae_modules[i].forward_loss(padding_infra_features, pred, mask)
+                        else:
+                            loss_mae += self.mae_modules[i].forward_loss(padding_infra_features, pred, mask)   
+                    
+                    infra_features_mae = self.mae_modules[i].unpatchify(pred)[:, :, :min_hw, :]
+                    # infra_features = infra_features * (1 - mask_mae).float()
+                    node_features = torch.cat((veh_features, infra_features), dim=0)  
+
                     C, H, W = node_features.shape[1:]
                     neighbor_feature = warp_affine_simple(node_features,
                                                     t_matrix[0, :, :, :],
@@ -368,5 +397,5 @@ class Where2comm(nn.Module):
                 x_fuse.append(self.fuse_modules(neighbor_feature))
             x_fuse = torch.stack(x_fuse)
         
-        return x_fuse, communication_rates, {}
+        return x_fuse, communication_rates, {}, loss_mae
 

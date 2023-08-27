@@ -211,7 +211,9 @@ class PointPillarLoss(nn.Module):
         boxes2 = torch.cat([boxes2[..., :dim], rad_tg_encoding,
                             boxes2[..., dim + 1:]], dim=-1)
         return boxes1, boxes2
-
+    
+    def add_loss_dict(self, k, v):
+        self.loss_dict[k] = v
 
     def logging(self, epoch, batch_id, batch_len, eta_string, writer = None, nprocs = 1):
         """

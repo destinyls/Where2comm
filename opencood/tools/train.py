@@ -143,6 +143,8 @@ def main_worker(local_rank, nprocs, opt):
             if 'psm' in output_dict.keys():
                 final_loss = criterion(output_dict, batch_data['ego']['label_dict'])
             if len(output_dict) > 2:
+                if 'loss_mae' in output_dict.keys():
+                    loss_mae = output_dict['loss_mae']
                 if 'psm_single_v' in output_dict.keys():
                     single_loss_v = criterion(output_dict, batch_data['ego']['label_dict_single_v'], prefix='_single_v')
                 if 'psm_single_i' in output_dict.keys():
@@ -157,17 +159,21 @@ def main_worker(local_rank, nprocs, opt):
                                 round_loss_v += criterion(output_dict, batch_data['ego']['label_dict'], prefix='_v{}'.format(round_id))
 
             torch.distributed.barrier()
+            
+            if len(output_dict) > 2:
+                final_loss += single_loss_v + single_loss_i 
+                if loss_mae is not None:
+                    final_loss += loss_mae
+                    criterion.add_loss_dict("mae_loss_single", loss_mae)
+                if with_round_loss:
+                    final_loss += round_loss_v
+
             if local_rank == 0:
                 batch_time = time.time() - start_batch_time
                 mean_batch_time = ((len(train_loader) * epoch + i) * mean_batch_time + batch_time) / (len(train_loader) * epoch + i + 1)
                 eta_seconds = mean_batch_time * (len(train_loader) * epoches - (len(train_loader) * epoch + i))
                 eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
                 criterion.logging(epoch, i, len(train_loader), eta_string, writer, nprocs)
-
-            if len(output_dict) > 2:
-                final_loss += single_loss_v + single_loss_i                
-                if with_round_loss:
-                    final_loss += round_loss_v
 
             # back-propagation
             final_loss.backward()
