@@ -220,6 +220,7 @@ class Where2comm(nn.Module):
                                                 with_spe=args['agg_operator']['with_spe'], 
                                                 with_scm=args['agg_operator']['with_scm'])
                 self.fuse_modules.append(fuse_network)
+                
                 HWC = self.multi_scale_map[idx]
                 max_hw = max(HWC[0], HWC[1])
                 self.mae_modules.append(mae_vit_custom_patch1_dec512d8b(img_size=max_hw, patch_size=int(max_hw / 60), in_chans=HWC[2], norm_pix_loss=False))
@@ -323,21 +324,23 @@ class Where2comm(nn.Module):
                     max_hw, min_hw = max(HWC[0], HWC[1]), min(HWC[0], HWC[1])
                     padding_infra_features = torch.zeros((infra_features.shape[0], infra_features.shape[1], max_hw - min_hw, max_hw), dtype=infra_features.dtype, device=infra_features.device)
                     padding_infra_features = torch.cat((infra_features, padding_infra_features), dim=2)
-                    pred, mask = self.mae_modules[i](padding_infra_features, mask_ratio=0.75)
+                    pred, mask = self.mae_modules[i](padding_infra_features, mask_ratio=0.90)
                     mask = self.mae_modules[i].unpatchify(mask.unsqueeze(-1).repeat(1, 1, int(self.mae_modules[i].patch_embed.patch_size[0])**2))
                     mask_mae = mask[:, :, :min_hw, :]
+                    # mask[:, :, :min_hw, :] = 1.0
                     mask[:, :, min_hw:, :] = 0.0
                     mask = self.mae_modules[i].patchify(mask)[:, :, 0]
                     
-                    if self.training and False:
+                    if self.training:
                         if loss_mae is None:
                             loss_mae = self.mae_modules[i].forward_loss(padding_infra_features, pred, mask)
                         else:
                             loss_mae += self.mae_modules[i].forward_loss(padding_infra_features, pred, mask)   
                     
                     infra_features_mae = self.mae_modules[i].unpatchify(pred)[:, :, :min_hw, :]
+                    infra_features_mae = infra_features_mae * mask_mae + infra_features * (1 - mask_mae)
                     # infra_features = infra_features * (1 - mask_mae).float()
-                    node_features = torch.cat((veh_features, infra_features), dim=0)  
+                    node_features = torch.cat((veh_features, infra_features_mae), dim=0)  
 
                     C, H, W = node_features.shape[1:]
                     neighbor_feature = warp_affine_simple(node_features,

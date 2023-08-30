@@ -212,7 +212,7 @@ class MaskedAutoencoderViT(nn.Module):
         loss = loss.mean(dim=-1)  # [N, L], mean loss per patch
 
         loss = (loss * mask).sum() / mask.sum()  # mean loss on removed patches
-        return loss
+        return loss * 5
 
     def forward(self, imgs, mask_ratio=0.75):
         latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio)
@@ -223,6 +223,13 @@ class MaskedAutoencoderViT(nn.Module):
 def mae_vit_custom_patch1_dec512d8b(img_size, patch_size, in_chans, norm_pix_loss=False):
     model = MaskedAutoencoderViT(img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=384, 
         depth=4, num_heads=6, decoder_embed_dim=256, decoder_depth=2, decoder_num_heads=8,
+        mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), norm_pix_loss=norm_pix_loss)
+    
+    return model
+
+def mae_vit_custom_patch1_dec512d8b_tiny(img_size, patch_size, in_chans, norm_pix_loss=False):
+    model = MaskedAutoencoderViT(img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=192, 
+        depth=2, num_heads=3, decoder_embed_dim=12, decoder_depth=1, decoder_num_heads=4,
         mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), norm_pix_loss=norm_pix_loss)
     
     return model
@@ -255,4 +262,4 @@ def mae_vit_huge_patch14_dec512d8b(**kwargs):
 mae_vit_base_patch16 = mae_vit_base_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
 mae_vit_large_patch16 = mae_vit_large_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
 mae_vit_huge_patch14 = mae_vit_huge_patch14_dec512d8b  # decoder: 512 dim, 8 blocks
-mae_vit_custom_patch1 = mae_vit_custom_patch1_dec512d8b  # decoder: 512 dim, 8 blocks
+mae_vit_custom_patch1 = mae_vit_custom_patch1_dec512d8b_tiny  # decoder: 512 dim, 8 blocks
