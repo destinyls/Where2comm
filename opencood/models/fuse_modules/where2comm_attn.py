@@ -19,7 +19,7 @@ from opencood.models.comm_modules.where2comm import Communication
 
 from opencood.visualization import simple_vis
 from opencood.models.fuse_modules.gaussian import Gaussian
-from opencood.models.fuse_modules.models_mae import mae_vit_custom_patch1_dec512d8b
+from opencood.models.fuse_modules.models_mae import mae_vit_custom_patch1
 
 class ScaledDotProductAttention(nn.Module):
     """
@@ -223,7 +223,7 @@ class Where2comm(nn.Module):
                 
                 HWC = self.multi_scale_map[idx]
                 max_hw = max(HWC[0], HWC[1])
-                self.mae_modules.append(mae_vit_custom_patch1_dec512d8b(img_size=max_hw, patch_size=int(max_hw / 60), in_chans=HWC[2], norm_pix_loss=False))
+                self.mae_modules.append(mae_vit_custom_patch1(img_size=max_hw, patch_size=int(max_hw / 60), in_chans=HWC[2], norm_pix_loss=False))
         else:
             if self.agg_mode == 'ATTEN':
                 self.fuse_modules = AttenFusion(args['agg_operator']['feature_dim'])
@@ -315,9 +315,10 @@ class Where2comm(nn.Module):
                     node_features = batch_node_features[b]
                     pred_box_infra, pred_score_infra, sample_idx = pred_box_infra_list[b], pred_score_infra_list[b], sample_idx_list[b]
                     gaussian_maps = self.gaussian(pred_box_infra, torch.zeros_like(node_features[1].unsqueeze(0)), i, sample_idx)                           
-            
-                    veh_features, infra_features = node_features[0].unsqueeze(0), node_features[1].unsqueeze(0)
-                    infra_features = infra_features * (gaussian_maps > 0).float()
+                    # veh_features, infra_features = node_features[0].unsqueeze(0), node_features[1].unsqueeze(0)
+                    
+                    infra_features = node_features[1].unsqueeze(0) * (gaussian_maps > 0).float()
+                    # node_features = torch.cat((node_features[0].unsqueeze(0), infra_features), dim=0) 
                     
                     ''' mae restruction '''
                     HWC = self.multi_scale_map[i]
@@ -327,7 +328,6 @@ class Where2comm(nn.Module):
                     pred, mask = self.mae_modules[i](padding_infra_features, mask_ratio=0.90)
                     mask = self.mae_modules[i].unpatchify(mask.unsqueeze(-1).repeat(1, 1, int(self.mae_modules[i].patch_embed.patch_size[0])**2))
                     mask_mae = mask[:, :, :min_hw, :]
-                    # mask[:, :, :min_hw, :] = 1.0
                     mask[:, :, min_hw:, :] = 0.0
                     mask = self.mae_modules[i].patchify(mask)[:, :, 0]
                     
@@ -340,8 +340,9 @@ class Where2comm(nn.Module):
                     infra_features_mae = self.mae_modules[i].unpatchify(pred)[:, :, :min_hw, :]
                     infra_features_mae = infra_features_mae * mask_mae + infra_features * (1 - mask_mae)
                     # infra_features = infra_features * (1 - mask_mae).float()
-                    node_features = torch.cat((veh_features, infra_features_mae), dim=0)  
-
+                    node_features = torch.cat((node_features[0].unsqueeze(0), infra_features), dim=0)
+                    # node_features = torch.cat((veh_features, infra_features_mae), dim=0)  
+                
                     C, H, W = node_features.shape[1:]
                     neighbor_feature = warp_affine_simple(node_features,
                                                     t_matrix[0, :, :, :],
