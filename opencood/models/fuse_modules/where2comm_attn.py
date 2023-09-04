@@ -222,8 +222,8 @@ class Where2comm(nn.Module):
                 self.fuse_modules.append(fuse_network)
                 
                 HWC = self.multi_scale_map[idx]
-                max_hw = max(HWC[0], HWC[1])
-                self.mae_modules.append(mae_vit_custom_patch1(img_size=max_hw, patch_size=int(max_hw / 60), in_chans=HWC[2], norm_pix_loss=False))
+                min_hw, max_hw = min(HWC[0], HWC[1]), max(HWC[0], HWC[1])
+                self.mae_modules.append(mae_vit_custom_patch1(img_size=(min_hw, max_hw), patch_size=int(max_hw / 60), in_chans=HWC[2], norm_pix_loss=False))
         else:
             if self.agg_mode == 'ATTEN':
                 self.fuse_modules = AttenFusion(args['agg_operator']['feature_dim'])
@@ -317,28 +317,29 @@ class Where2comm(nn.Module):
                     gaussian_maps = self.gaussian(pred_box_infra, torch.zeros_like(node_features[1].unsqueeze(0)), i, sample_idx)                           
                     # veh_features, infra_features = node_features[0].unsqueeze(0), node_features[1].unsqueeze(0)
                     
-                    infra_features = node_features[1].unsqueeze(0) * (gaussian_maps > 0).float()
+                    # infra_features = node_features[1].unsqueeze(0) * (gaussian_maps > 0).float()
+                    infra_features = node_features[1].unsqueeze(0)
                     # node_features = torch.cat((node_features[0].unsqueeze(0), infra_features), dim=0) 
                     
                     ''' mae restruction '''
                     HWC = self.multi_scale_map[i]
                     max_hw, min_hw = max(HWC[0], HWC[1]), min(HWC[0], HWC[1])
-                    padding_infra_features = torch.zeros((infra_features.shape[0], infra_features.shape[1], max_hw - min_hw, max_hw), dtype=infra_features.dtype, device=infra_features.device)
-                    padding_infra_features = torch.cat((infra_features, padding_infra_features), dim=2)
-                    pred, mask = self.mae_modules[i](padding_infra_features, mask_ratio=0.90)
-                    mask = self.mae_modules[i].unpatchify(mask.unsqueeze(-1).repeat(1, 1, int(self.mae_modules[i].patch_embed.patch_size[0])**2))
+                    # padding_infra_features = torch.zeros((infra_features.shape[0], infra_features.shape[1], max_hw - min_hw, max_hw), dtype=infra_features.dtype, device=infra_features.device)
+                    # padding_infra_features = torch.cat((infra_features, padding_infra_features), dim=2)
+                    pred, mask = self.mae_modules[i](infra_features, mask_ratio=0.90)
+                    hw = self.mae_modules[i].get_hw(infra_features)
+                    mask = self.mae_modules[i].unpatchify(mask.unsqueeze(-1).repeat(1, 1, int(self.mae_modules[i].patch_embed.patch_size[0])**2), hw)                    
                     mask_mae = mask[:, :, :min_hw, :]
-                    mask[:, :, min_hw:, :] = 0.0
                     mask = self.mae_modules[i].patchify(mask)[:, :, 0]
                     
                     if self.training:
                         if loss_mae is None:
-                            loss_mae = self.mae_modules[i].forward_loss(padding_infra_features, pred, mask)
+                            loss_mae = self.mae_modules[i].forward_loss(infra_features, pred, mask)
                         else:
-                            loss_mae += self.mae_modules[i].forward_loss(padding_infra_features, pred, mask)   
+                            loss_mae += self.mae_modules[i].forward_loss(infra_features, pred, mask)   
                     
-                    infra_features_mae = self.mae_modules[i].unpatchify(pred)[:, :, :min_hw, :]
-                    infra_features_mae = infra_features_mae * mask_mae + infra_features * (1 - mask_mae)
+                    infra_features_mae = self.mae_modules[i].unpatchify(pred, hw)[:, :, :min_hw, :]
+                    # infra_features_mae = infra_features_mae * mask_mae + infra_features * (1 - mask_mae)
                     # infra_features = infra_features * (1 - mask_mae).float()
                     node_features = torch.cat((node_features[0].unsqueeze(0), infra_features), dim=0)
                     # node_features = torch.cat((veh_features, infra_features_mae), dim=0)  
