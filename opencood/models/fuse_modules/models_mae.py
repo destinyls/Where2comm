@@ -196,7 +196,6 @@ class MaskedAutoencoderViT(nn.Module):
 
         # predictor projection
         x = self.decoder_pred(x)
-
         # remove cls token
         x = x[:, 1:, :]
 
@@ -223,6 +222,8 @@ class MaskedAutoencoderViT(nn.Module):
     def forward(self, imgs, mask_ratio=0.75):
         latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio)
         pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*3]
+        target = self.patchify(imgs)
+        pred = pred * mask.unsqueeze(-1) + target * (1 - mask).unsqueeze(-1)
         # loss = self.forward_loss(imgs, pred, mask)
         return pred, mask
 
