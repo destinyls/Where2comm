@@ -13,9 +13,14 @@ from datetime import datetime
 import shutil
 import torch
 import torch.optim as optim
+from datetime import datetime
 
 def backup_script(full_path, folders_to_save=["models", "data_utils", "utils", "loss"]):
-    target_folder = os.path.join(full_path, 'scripts')
+    
+    timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+    target_folder = os.path.join(full_path, f'scripts_{timestamp}')
+    
+    # target_folder = os.path.join(full_path, 'scripts')
     if not os.path.exists(target_folder):
         os.mkdir(target_folder)
     
@@ -24,6 +29,7 @@ def backup_script(full_path, folders_to_save=["models", "data_utils", "utils", "
     for folder_name in folders_to_save:
         ttarget_folder = os.path.join(target_folder, folder_name)
         source_folder = os.path.join(current_path, f'../{folder_name}')
+        
         shutil.copytree(source_folder, ttarget_folder)
 
 def load_saved_model(saved_path, model, epoch=None):
