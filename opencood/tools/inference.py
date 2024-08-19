@@ -224,12 +224,21 @@ def main():
     if torch.cuda.is_available():
         model.cuda()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
     for model_name in os.listdir(opt.model_dir):
         if ".pth" not in model_name: continue
         epoch_id = int(model_name.split('.')[0][9:])
-        epoch_id, model = train_utils.load_saved_model(opt.model_dir, model, epoch_id)
-        model.eval()
-        evaluation(model, data_loader, opt, opencood_dataset, device, test_inference, hypes, left_hand, epoch_id)
+        if epoch_id in [55,57,59,61,63,65,67,69]:
+            epoch_id, model = train_utils.load_saved_model(opt.model_dir, model, epoch_id)
+            model.eval()
+            evaluation(model, data_loader, opt, opencood_dataset, device, test_inference, hypes, left_hand, epoch_id)
+    
+    # for model_name in os.listdir(opt.model_dir):
+    #     if ".pth" not in model_name: continue
+    #     epoch_id = int(model_name.split('.')[0][9:])
+    #     epoch_id, model = train_utils.load_saved_model(opt.model_dir, model, epoch_id)
+    #     model.eval()
+    #     evaluation(model, data_loader, opt, opencood_dataset, device, test_inference, hypes, left_hand, epoch_id)
 
 if __name__ == '__main__':
     main()
