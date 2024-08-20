@@ -184,7 +184,7 @@ class Where2comm(nn.Module):
     def __init__(self, args):
         super(Where2comm, self).__init__()
 
-        self.communication = False
+        self.communication = False   # default False
         self.round = 1
         if 'communication' in args:
             self.communication = True
@@ -197,8 +197,8 @@ class Where2comm(nn.Module):
         self.agg_mode = args['agg_operator']['mode']
         self.multi_scale = args['multi_scale']
         if self.multi_scale:
-            layer_nums = args['layer_nums']
-            num_filters = args['num_filters']
+            layer_nums = args['layer_nums']   # 每个尺度的层数
+            num_filters = args['num_filters']  # 每个尺度下的滤波器数量
             self.num_levels = len(layer_nums)
             self.fuse_modules = nn.ModuleList()
             for idx in range(self.num_levels):
@@ -225,13 +225,13 @@ class Where2comm(nn.Module):
                                             with_spe=args['agg_operator']['with_spe'], 
                                             with_scm=args['agg_operator']['with_scm'])     
 
-    def regroup(self, x, record_len):
+    def regroup(self, x, record_len):   # 根据record_len分割
         cum_sum_len = torch.cumsum(record_len, dim=0)
         split_x = torch.tensor_split(x, cum_sum_len[:-1].cpu())
         return split_x
 
     def forward(self, x, rm, record_len, pairwise_t_matrix, backbone=None, heads=None):
-        """
+        """  core code 
         Fusion forwarding.
         
         Parameters
@@ -265,7 +265,7 @@ class Where2comm(nn.Module):
             # backbone.__dict__()
             with_resnet = True if hasattr(backbone, 'resnet') else False
             if with_resnet:
-                feats = backbone.resnet(x)
+                feats = backbone.resnet(x)   # 在ResNet的不同层提取多尺度特征
             
             for i in range(self.num_levels):
                 x = feats[i] if with_resnet else backbone.blocks[i](x)
@@ -275,7 +275,7 @@ class Where2comm(nn.Module):
                     if self.communication:
                         batch_confidence_maps = self.regroup(rm, record_len)
                         _, communication_masks, communication_rates = self.naive_communication(batch_confidence_maps, record_len, pairwise_t_matrix)
-                        x = x * communication_masks
+                        x = x * communication_masks   # 应用mask
                     else:
                         communication_rates = torch.tensor(0).to(x.device)
                 
@@ -313,12 +313,12 @@ class Where2comm(nn.Module):
             
             if len(backbone.deblocks) > self.num_levels:
                 x_fuse = backbone.deblocks[-1](x_fuse)
-        else:
+        else:    # self.multi_scale=False
             ############ 1. Split the features #######################
             # split x:[(L1, C, H, W), (L2, C, H, W), ...]
             # for example [[2, 256, 50, 176], [1, 256, 50, 176], ...]
-            batch_node_features = self.regroup(x, record_len)
-            batch_confidence_maps = self.regroup(rm, record_len)
+            batch_node_features = self.regroup(x, record_len)  # 分割特征图
+            batch_confidence_maps = self.regroup(rm, record_len)  # 分割置信度图
 
             ############ 2. Communication (Mask the features) #########
             if self.communication:
@@ -330,13 +330,13 @@ class Where2comm(nn.Module):
             x_fuse = []
             for b in range(B):
                 # number of valid agent
-                N = record_len[b]
+                N = record_len[b]  # 当前批次中的agent数量
                 # (N,N,4,4)
                 # t_matrix[i, j]-> from i to j
                 t_matrix = pairwise_t_matrix[b][:N, :N, :, :]
                 node_features = batch_node_features[b]
                 if self.communication:
-                    node_features = node_features * communication_masks[b]
+                    node_features = node_features * communication_masks[b]  # 开启communication  应用mask
                 neighbor_feature = warp_affine_simple(node_features,
                                                 t_matrix[0, :, :, :],
                                                 (H, W))

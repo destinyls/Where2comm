@@ -77,7 +77,7 @@ class PointPillar(nn.Module):
         rm = self.reg_head(spatial_features_2d)
         return psm, rm, spatial_features, spatial_features_2d
     
-    def backbone_fix(self):
+    def backbone_fix(self):    # 冻结参数  不训练
         """
         Fix the parameters of backbone during finetune on timedelay。
         """

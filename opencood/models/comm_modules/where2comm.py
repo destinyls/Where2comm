@@ -51,7 +51,7 @@ class Communication(nn.Module):
 
             ori_communication_maps = batch_confidence_maps[b].sigmoid().max(dim=1)[0].unsqueeze(1) # dim1=2 represents the confidence of two anchors
             
-            if self.smooth:
+            if self.smooth:  # 使用gaussian filter做平滑处理
                 communication_maps = self.gaussian_filter(ori_communication_maps)
             else:
                 communication_maps = ori_communication_maps

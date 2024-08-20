@@ -148,6 +148,7 @@ def main_worker(local_rank, nprocs, opt):
                 if 'psm_single_i' in output_dict.keys():
                     single_loss_i = criterion(output_dict, batch_data['ego']['label_dict_single_i'], prefix='_single_i')
                 if 'fusion_args' in hypes['model']['args']:
+                    # 现在用的yaml中  注释了communication
                     if 'communication' in hypes['model']['args']['fusion_args']:
                         comm = hypes['model']['args']['fusion_args']['communication']
                         if ('round' in comm) and comm['round'] > 1:
@@ -175,7 +176,7 @@ def main_worker(local_rank, nprocs, opt):
 
             torch.cuda.empty_cache()
 
-        if epoch % hypes['train_params']['eval_freq'] == 0:
+        if epoch % hypes['train_params']['eval_freq'] == 0:  # 训练期间会eval  eval_freq=2
             valid_ave_loss = []
 
             with torch.no_grad():
@@ -214,7 +215,7 @@ def main_worker(local_rank, nprocs, opt):
                                                               valid_ave_loss))
             writer.add_scalar('Validate_Loss', valid_ave_loss, epoch)
 
-        if epoch % hypes['train_params']['save_freq'] == 0 and local_rank == 0:
+        if epoch % hypes['train_params']['save_freq'] == 0 and local_rank == 0:  # 不是每次都保存  save_freq=2
             torch.save(model.state_dict(),
                        os.path.join(saved_path,
                                     'net_epoch%d.pth' % (epoch + 1)))
@@ -225,7 +226,8 @@ def main_worker(local_rank, nprocs, opt):
     run_test = True
     if run_test:
         fusion_method = opt.fusion_method
-        cmd = f"python /GPFS/data/yhu/code/OpenCOOD/opencood/tools/inference.py --model_dir {saved_path} --fusion_method {fusion_method}"
+        # cmd = f"python /GPFS/data/yhu/code/OpenCOOD/opencood/tools/inference.py --model_dir {saved_path} --fusion_method {fusion_method}"
+        cmd = f"python opencood/tools/inference.py --model_dir {saved_path} --fusion_method {fusion_method}"
         print(f"Running command: {cmd}")
         os.system(cmd)
 
