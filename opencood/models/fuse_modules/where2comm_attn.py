@@ -364,7 +364,8 @@ class Where2comm(nn.Module):
                     infra_features_mae = infra_features_mae.permute(0, 1, 3, 2, 4).contiguous()
                     infra_features_mae = infra_features_mae.view(1, c, h, w)
 
-                    # 将重建后 infra_feature 与 vehicle_feature 拼接
+                    # Self-correcting Position Error and Feature
+                    # concate 重建后 infra_feature 与 vehicle_feature 
                     # infra_features_mae = infra_features_mae * mask_mae + infra_features * (1 - mask_mae)
                     # infra_features = infra_features * (1 - mask_mae).float()
                     node_features = torch.cat((node_features[0].unsqueeze(0), infra_features_mae), dim=0)
@@ -373,12 +374,12 @@ class Where2comm(nn.Module):
                     C, H, W = node_features.shape[1:]
                     neighbor_feature = warp_affine_simple(node_features,
                                                     t_matrix[0, :, :, :],
-                                                    (H, W))
-                    fuse_feature = self.fuse_modules[i](neighbor_feature)
+                                                    (H, W))    # 通过affine trans  空间对齐不同来源的特征
+                    fuse_feature = self.fuse_modules[i](neighbor_feature)  # fuse feature
                     
                     # fuse_feature = node_features[0]
                     fuse_feature = torch.cat((fuse_feature.unsqueeze(0), gaussian_maps), dim=0)
-                    fuse_feature = warp_affine_simple(fuse_feature, t_matrix[0, :, :, :], (H, W))
+                    fuse_feature = warp_affine_simple(fuse_feature, t_matrix[0, :, :, :], (H, W))  # affine trans   进一步 空间对齐
                     fuse_feature = self.fuse_modules[i](fuse_feature)
                     # print("fuse_feature: ", fuse_feature.shape, gaussian_maps.shape)
                     x_fuse.append(fuse_feature)
