@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Author: Yue Hu <phyllis1sjtu@outlook.com>
 # License: TDG-Attribution-NonCommercial-NoDistrib
-
+# 与 devel分支 where2comm.py 一样
 import torch
 import torch.nn as nn
 import numpy as np
