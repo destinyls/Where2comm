@@ -342,7 +342,7 @@ class Where2comm(nn.Module):
                     infra_features = infra_features.view(infra_features.shape[0], -1, downsample_factor_h, downsample_factor_w)
                     infra_features = infra_features.permute(1, 0, 2, 3).contiguous()
 
-                    pred, mask = self.mae_modules[i](infra_features, mask_ratio=0.50)  # random masked feature filtering and reconstruction
+                    pred, mask = self.mae_modules[i](infra_features, mask_ratio=0.5)  # random masked feature filtering and reconstruction   mask_ratio=0.9
                     hw = self.mae_modules[i].get_hw(infra_features)
                     mask = self.mae_modules[i].unpatchify(mask.unsqueeze(-1).repeat(1, 1, int(self.mae_modules[i].patch_embed.patch_size[0])**2), hw)                    
                     mask_mae = mask[:, :, :min_hw, :]
