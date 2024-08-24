@@ -1,9 +1,9 @@
 name: dair_where2comm_attn_multiscale_resnet
 
-data_dir: "datasets/dair-v2x-c/training"
-root_dir: "datasets/dair-v2x-c/training/trainval.json"
-validate_dir: "datasets/dair-v2x-c/training/val.json"
-test_dir: "datasets/dair-v2x-c/training/val.json"
+data_dir: "dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure"
+root_dir: "dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure/train.json"
+validate_dir: "dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure/val.json"
+test_dir: "dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure/val.json"
 
 noise_setting:
   add_noise: False
