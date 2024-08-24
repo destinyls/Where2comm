@@ -31,8 +31,10 @@ def train_parser():
                         help='Continued training path')
     parser.add_argument('--fusion_method', '-f', default="intermediate",
                         help='passed to inference.')
-    parser.add_argument('--local_rank', default=-1, type=int,
-                        help='node rank for distributed training')
+    # parser.add_argument('--local_rank', default=-1, type=int,
+    #                     help='node rank for distributed training')
+    parser.add_argument('--local_rank', default=int(os.environ.get('LOCAL_RANK', -1)), type=int,
+                        help='Node rank for distributed training')
     parser.add_argument('--seed', default=None, type=int,
                         help='seed for initializing training. ')
     opt = parser.parse_args()
