@@ -220,7 +220,7 @@ def main_worker(local_rank, nprocs, opt):
                                                               valid_ave_loss))
             writer.add_scalar('Validate_Loss', valid_ave_loss, epoch)
 
-        if epoch % hypes['train_params']['save_freq'] == 0 and local_rank == 0 and epoch > 50:  #  因为epoch数太大   save_freq=5  仅保存50 epoch之后的
+        if epoch % hypes['train_params']['save_freq'] == 0 and local_rank == 0 and epoch > 25:  #  因为epoch数太大   save_freq=5  仅保存50 epoch之后的
             torch.save(model.state_dict(),
                        os.path.join(saved_path,
                                     'net_epoch%d.pth' % (epoch + 1)))
