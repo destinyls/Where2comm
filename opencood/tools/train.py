@@ -240,7 +240,7 @@ def main_worker(local_rank, nprocs, opt):
 
 if __name__ == '__main__':
     opt = train_parser()
-    
+
     if opt.seed is not None:
         random.seed(opt.seed)
         torch.manual_seed(opt.seed)
