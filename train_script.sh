@@ -9,4 +9,4 @@ python opencood/tools/inference.py --model_dir opencood/logs/dair_where2comm_max
 
 python opencood/tools/inference.py --model_dir opencood/logs/mae_logs/dair_where2comm_max_multiscale_resnet_2024_08_24_09_15_24  --fusion_method  intermediate_with_comm
 
-CUDA_VISIBLE_DEVICES=5 python opencood/tools/train_single.py --hypes_yaml opencood/hypes_yaml/dair-v2x/dair_where2comm_max_multiscale_resnet.yaml --model_dir opencood/logs/mae_logs/dair_where2comm_max_multiscale_resnet_2024_08_26_09_07_27
+CUDA_VISIBLE_DEVICES=3 python opencood/tools/train_single.py --hypes_yaml opencood/hypes_yaml/dair-v2x/dair_where2comm_max_multiscale_resnet.yaml --model_dir opencood/logs/mae_logs/dair_where2comm_max_multiscale_resnet_2024_08_26_22_17_52
