@@ -146,7 +146,11 @@ def setup_train(hypes, local_rank=0):
     timestamp = current_time.strftime("_%Y_%m_%d_%H_%M_%S")
     folder_name = model_name + timestamp
     current_path = os.path.dirname(__file__)
-    current_path = os.path.join(current_path, '../logs/mae_logs')
+    if hypes['model']['args']['fusion_args']['enable_mae']:
+        current_path = os.path.join(current_path, '../logs/mae_logs')
+    else:
+        current_path = os.path.join(current_path, '../logs/no_mae_logs')
+    
 
     full_path = os.path.join(current_path, folder_name)
 

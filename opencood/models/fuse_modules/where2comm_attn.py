@@ -203,8 +203,10 @@ class Where2comm(nn.Module):
         self.multi_scale = args['multi_scale']
         self.gaussian = Gaussian(args)
         self.downsample_factor = {100: (20, 36, 2), 50: (10, 18, 1), 25: (5, 9, 1)}
+        
+        self.enable_mae = args['enable_mae']
 
-        if self.multi_scale:
+        if self.multi_scale:  # True
             layer_nums = args['layer_nums']
             num_filters = args['num_filters']
             self.num_levels = len(layer_nums)
@@ -310,7 +312,7 @@ class Where2comm(nn.Module):
                 batch_node_features = self.regroup(x, record_len)
                 
                 ############ 3. Fusion ####################################
-                x_fuse, enable_mae = [], False
+                x_fuse = []
                 for b in range(B):
                     # number of valid agent
                     N = record_len[b]
@@ -318,7 +320,7 @@ class Where2comm(nn.Module):
                     t_matrix = pairwise_t_matrix[b][:N, :N, :, :]
                     node_features = batch_node_features[b]
                     C, H, W = node_features.shape[1:]
-                    if not enable_mae:
+                    if  not self.enable_mae:
                         neighbor_feature = warp_affine_simple(node_features, t_matrix[0, :, :, :], (H, W))    # 通过affine trans  空间对齐不同来源的特征
                         fuse_feature = self.fuse_modules[i](neighbor_feature)  # fuse feature
                     else:    

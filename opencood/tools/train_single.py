@@ -53,10 +53,6 @@ def main_worker(local_rank, nprocs, opt):
     bs = int(hypes['train_params']['batch_size'] / 1)
     distributed = False
     train_sampler, val_sampler = None, None
-    if distributed:
-        model = torch.nn.parallel.DistributedDataParallel(model,  device_ids=[local_rank], find_unused_parameters=True)
-        train_sampler = torch.utils.data.distributed.DistributedSampler(opencood_train_dataset)
-        val_sampler = torch.utils.data.distributed.DistributedSampler(opencood_validate_dataset)
         
     train_loader = DataLoader(opencood_train_dataset,
                               batch_size=bs,
@@ -74,13 +70,6 @@ def main_worker(local_rank, nprocs, opt):
                             pin_memory=True,
                             drop_last=True,
                             sampler=val_sampler)        
-    
-    '''
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    # we assume gpu is necessary
-    if torch.cuda.is_available():
-        model.to(device)
-    '''
 
     # define the loss
     criterion = train_utils.create_loss(hypes)
@@ -111,9 +100,6 @@ def main_worker(local_rank, nprocs, opt):
     with_round_loss = False
     mean_batch_time = 0.0
     for epoch in range(init_epoch, max(epoches, init_epoch)):
-        if distributed:
-            train_sampler.set_epoch(epoch)
-            val_sampler.set_epoch(epoch)
         for param_group in optimizer.param_groups:
             print('learning rate %f' % param_group["lr"])
         for i, batch_data in enumerate(train_loader):
@@ -214,7 +200,7 @@ def main_worker(local_rank, nprocs, opt):
                                                               valid_ave_loss))
             writer.add_scalar('Validate_Loss', valid_ave_loss, epoch)
 
-        if epoch % hypes['train_params']['save_freq'] == 0 and local_rank == 0 and epoch > 25:  #  因为epoch数太大   save_freq=5  仅保存50 epoch之后的
+        if epoch % hypes['train_params']['save_freq'] == 0 and local_rank == 0 and epoch > 25:  #  因为epoch数太大   save_freq=5  仅保存25 epoch之后的
             torch.save(model.state_dict(),
                        os.path.join(saved_path,
                                     'net_epoch%d.pth' % (epoch + 1)))
@@ -224,7 +210,6 @@ def main_worker(local_rank, nprocs, opt):
     torch.cuda.empty_cache()
     run_test = True
     if run_test:
-        # fusion_method = opt.fusion_method
         cmd = f"python /home/yanglei/code/Where2comm/opencood/tools/inference.py --model_dir {saved_path} --fusion_method intermediate_with_comm"
         print(f"Running command: {cmd}")
         os.system(cmd)
