@@ -398,7 +398,7 @@ class VoxelPostprocessor(BasePostprocessor):
         anchor_box = data_dict['anchor_box']
 
         # classification probability
-        if selected_agent == 0:
+        if selected_agent == 0:  
             transformation_matrix = data_dict['transformation_matrix']
             prob = output_dict['psm_single_v'].unsqueeze(0)
             reg = output_dict['rm_single_v'].unsqueeze(0)

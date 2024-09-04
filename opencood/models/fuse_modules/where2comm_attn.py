@@ -230,7 +230,6 @@ class Where2comm(nn.Module):
                 downsample_factor_h, downsample_factor_w, patch_size = self.downsample_factor[min_hw]
                 self.mae_modules.append(mae_vit_custom_patch1(img_size=(downsample_factor_h, downsample_factor_w), patch_size=patch_size, in_chans=HWC[2], norm_pix_loss=False))
         else:
-            # 无 mae
             if self.agg_mode == 'ATTEN':
                 self.fuse_modules = AttenFusion(args['agg_operator']['feature_dim'])
             elif self.agg_mode == 'MAX':
@@ -277,10 +276,10 @@ class Where2comm(nn.Module):
         pairwise_t_matrix[...,0,2] = pairwise_t_matrix[...,0,2] / (self.downsample_rate * self.discrete_ratio * W) * 2
         pairwise_t_matrix[...,1,2] = pairwise_t_matrix[...,1,2] / (self.downsample_rate * self.discrete_ratio * H) * 2
 
-        if self.multi_scale:
+        if self.multi_scale:   # True
             pred_box_infra_list, pred_score_infra_list, sample_idx_list = [], [], []
             for b in range(B):
-                pred_box_infra, pred_score_infra = dataset.post_process(data_dict[b], output_dict[b], selected_agent=1, middle_post_process=True)
+                pred_box_infra, pred_score_infra = dataset.post_process(data_dict[b], output_dict[b], selected_agent=1, middle_post_process=True)  # infra
                 sample_idx = data_dict[b]['sample_idx']
                 pred_box_infra_list.append(pred_box_infra)
                 pred_score_infra_list.append(pred_score_infra)
@@ -303,7 +302,7 @@ class Where2comm(nn.Module):
                         _, communication_masks, communication_rates = self.naive_communication(batch_confidence_maps, record_len, pairwise_t_matrix)
                         x = x * communication_masks
                     else:
-                        communication_rates = torch.tensor(0).to(x.device)
+                        communication_rates = torch.tensor(0).to(x.device)  # 目前yaml中 self.communication=False
                 
                 ############ 2. Split the confidence map #######################
                 # split x:[(L1, C, H, W), (L2, C, H, W), ...]
@@ -311,77 +310,70 @@ class Where2comm(nn.Module):
                 batch_node_features = self.regroup(x, record_len)
                 
                 ############ 3. Fusion ####################################
-                x_fuse = []
+                x_fuse, enable_mae = [], False
                 for b in range(B):
                     # number of valid agent
                     N = record_len[b]
-                    # (N,N,4,4)
-                    # t_matrix[i, j]-> from i to j
+                    # (N,N,4,4)   t_matrix[i, j]-> from i to j
                     t_matrix = pairwise_t_matrix[b][:N, :N, :, :]
                     node_features = batch_node_features[b]
-                    pred_box_infra, pred_score_infra, sample_idx = pred_box_infra_list[b], pred_score_infra_list[b], sample_idx_list[b]
-                    gaussian_maps = self.gaussian(pred_box_infra, torch.zeros_like(node_features[1].unsqueeze(0)), i, sample_idx)                           
-                    # veh_features, infra_features = node_features[0].unsqueeze(0), node_features[1].unsqueeze(0)
-                    
-                    infra_features = node_features[1].unsqueeze(0) * (gaussian_maps > 0).float()
-                    n, c, h, w = infra_features.shape[0], infra_features.shape[1], infra_features.shape[2], infra_features.shape[3]
-                    # infra_features = node_features[1].unsqueeze(0)
-                    # node_features = torch.cat((node_features[0].unsqueeze(0), infra_features), dim=0) 
-                    
-                    # core code
-                    ''' mae restruction '''
-                    HWC = self.multi_scale_map[i]
-                    max_hw, min_hw = max(HWC[0], HWC[1]), min(HWC[0], HWC[1])
-                    # padding_infra_features = torch.zeros((infra_features.shape[0], infra_features.shape[1], max_hw - min_hw, max_hw), dtype=infra_features.dtype, device=infra_features.device)
-                    # padding_infra_features = torch.cat((infra_features, padding_infra_features), dim=2)
-                                        
-                    downsample_factor_h, downsample_factor_w, _ = self.downsample_factor[min_hw]
-                    # 调整 infra_feature形状 用于 mae
-                    infra_features = infra_features.view(infra_features.shape[1], infra_features.shape[2] // downsample_factor_h, downsample_factor_h, infra_features.shape[3] // downsample_factor_w, downsample_factor_w)
-                    infra_features = infra_features.permute(0, 1, 3, 2, 4).contiguous()
-                    infra_features = infra_features.view(infra_features.shape[0], -1, downsample_factor_h, downsample_factor_w)
-                    infra_features = infra_features.permute(1, 0, 2, 3).contiguous()
-
-                    pred, mask = self.mae_modules[i](infra_features, mask_ratio=0.7)  # random masked feature filtering and reconstruction   mask_ratio=0.9  0.95
-                    hw = self.mae_modules[i].get_hw(infra_features)
-                    mask = self.mae_modules[i].unpatchify(mask.unsqueeze(-1).repeat(1, 1, int(self.mae_modules[i].patch_embed.patch_size[0])**2), hw)                    
-                    mask_mae = mask[:, :, :min_hw, :]
-                    mask = self.mae_modules[i].patchify(mask)[:, :, 0]
-                    
-                    if self.training:   # loss_mae  计算重建后特征pre 与 原始未掩码特征infra_features的loss
-                        if loss_mae is None:
-                            mask[:, :] = 1
-                            loss_mae = self.mae_modules[i].forward_loss(infra_features, pred, mask)
-                        else:
-                            mask[:, :] = 1
-                            loss_mae += self.mae_modules[i].forward_loss(infra_features, pred, mask)   
-                    
-                    # 调整 重建后特征的形状
-                    infra_features_mae = self.mae_modules[i].unpatchify(pred, hw)[:, :, :min_hw, :]
-
-                    infra_features_mae = infra_features_mae.permute(1, 0, 2, 3).contiguous()
-                    infra_features_mae = infra_features_mae.view(c, h // downsample_factor_h, w // downsample_factor_w, downsample_factor_h, downsample_factor_w)
-                    infra_features_mae = infra_features_mae.permute(0, 1, 3, 2, 4).contiguous()
-                    infra_features_mae = infra_features_mae.view(1, c, h, w)
-
-                    # Self-correcting Position Error and Feature
-                    # concate 重建后 infra_feature 与 vehicle_feature 
-                    # infra_features_mae = infra_features_mae * mask_mae + infra_features * (1 - mask_mae)
-                    # infra_features = infra_features * (1 - mask_mae).float()
-                    node_features = torch.cat((node_features[0].unsqueeze(0), infra_features_mae), dim=0)
-                    # node_features = torch.cat((veh_features, infra_features_mae), dim=0)  
-                
                     C, H, W = node_features.shape[1:]
-                    neighbor_feature = warp_affine_simple(node_features,
-                                                    t_matrix[0, :, :, :],
-                                                    (H, W))    # 通过affine trans  空间对齐不同来源的特征
-                    fuse_feature = self.fuse_modules[i](neighbor_feature)  # fuse feature
+                    if not enable_mae:
+                        neighbor_feature = warp_affine_simple(node_features, t_matrix[0, :, :, :], (H, W))    # 通过affine trans  空间对齐不同来源的特征
+                        fuse_feature = self.fuse_modules[i](neighbor_feature)  # fuse feature
+                    else:    
+                        pred_box_infra, pred_score_infra, sample_idx = pred_box_infra_list[b], pred_score_infra_list[b], sample_idx_list[b]
+                        gaussian_maps = self.gaussian(pred_box_infra, torch.zeros_like(node_features[1].unsqueeze(0)), i, sample_idx)                           
+                        # veh_features, infra_features = node_features[0].unsqueeze(0), node_features[1].unsqueeze(0)
+                        
+                        infra_features = node_features[1].unsqueeze(0) * (gaussian_maps > 0).float()         
+                        n, c, h, w = infra_features.shape[0], infra_features.shape[1], infra_features.shape[2], infra_features.shape[3]
+                        # infra_features = node_features[1].unsqueeze(0)
+                        # node_features = torch.cat((node_features[0].unsqueeze(0), infra_features), dim=0) 
+                        
+                        # core code
+                        ''' mae restruction '''
+                        HWC = self.multi_scale_map[i]
+                        max_hw, min_hw = max(HWC[0], HWC[1]), min(HWC[0], HWC[1])
+                        # padding_infra_features = torch.zeros((infra_features.shape[0], infra_features.shape[1], max_hw - min_hw, max_hw), dtype=infra_features.dtype, device=infra_features.device)
+                        # padding_infra_features = torch.cat((infra_features, padding_infra_features), dim=2)
+                                            
+                        downsample_factor_h, downsample_factor_w, _ = self.downsample_factor[min_hw]
+                        # 调整 infra_feature形状 用于 mae
+                        infra_features = infra_features.view(infra_features.shape[1], infra_features.shape[2] // downsample_factor_h, downsample_factor_h, infra_features.shape[3] // downsample_factor_w, downsample_factor_w)
+                        infra_features = infra_features.permute(0, 1, 3, 2, 4).contiguous()
+                        infra_features = infra_features.view(infra_features.shape[0], -1, downsample_factor_h, downsample_factor_w)
+                        infra_features = infra_features.permute(1, 0, 2, 3).contiguous()
+
+                        pred, mask = self.mae_modules[i](infra_features, mask_ratio=0.9)  # random masked feature filtering and reconstruction   mask_ratio=0.9  0.95 0.7 0.5
+                        hw = self.mae_modules[i].get_hw(infra_features)
+                        mask = self.mae_modules[i].unpatchify(mask.unsqueeze(-1).repeat(1, 1, int(self.mae_modules[i].patch_embed.patch_size[0])**2), hw)                    
+                        mask = self.mae_modules[i].patchify(mask)[:, :, 0]
+                        
+                        if self.training:   # loss_mae  计算重建后特征pre 与 原始未掩码特征infra_features的loss
+                            if loss_mae is None:
+                                mask[:, :] = 1
+                                loss_mae = self.mae_modules[i].forward_loss(infra_features, pred, mask)
+                            else:
+                                mask[:, :] = 1
+                                loss_mae += self.mae_modules[i].forward_loss(infra_features, pred, mask)   
+                        
+                        # 调整 重建后特征的形状
+                        infra_features_mae = self.mae_modules[i].unpatchify(pred, hw)[:, :, :min_hw, :]
+
+                        infra_features_mae = infra_features_mae.permute(1, 0, 2, 3).contiguous()
+                        infra_features_mae = infra_features_mae.view(c, h // downsample_factor_h, w // downsample_factor_w, downsample_factor_h, downsample_factor_w)
+                        infra_features_mae = infra_features_mae.permute(0, 1, 3, 2, 4).contiguous()
+                        infra_features_mae = infra_features_mae.view(1, c, h, w)
+
+                        # infra_features_mae[:,:,:] = 0.0  # 置0 
+                        node_features = torch.cat((node_features[0].unsqueeze(0), infra_features_mae), dim=0)   # node_features[0] vehicle
+                        neighbor_feature = warp_affine_simple(node_features, t_matrix[0, :, :, :], (H, W))    # 通过affine trans  空间对齐不同来源的特征
+                        fuse_feature = self.fuse_modules[i](neighbor_feature)  # fuse feature
+                        fuse_feature = torch.cat((fuse_feature.unsqueeze(0), gaussian_maps), dim=0)
+                        fuse_feature = warp_affine_simple(fuse_feature, t_matrix[0, :, :, :], (H, W))  # affine trans   进一步 空间对齐
+                        fuse_feature = self.fuse_modules[i](fuse_feature)
                     
-                    # fuse_feature = node_features[0]
-                    fuse_feature = torch.cat((fuse_feature.unsqueeze(0), gaussian_maps), dim=0)
-                    fuse_feature = warp_affine_simple(fuse_feature, t_matrix[0, :, :, :], (H, W))  # affine trans   进一步 空间对齐
-                    fuse_feature = self.fuse_modules[i](fuse_feature)
-                    # print("fuse_feature: ", fuse_feature.shape, gaussian_maps.shape)
                     x_fuse.append(fuse_feature)
                 x_fuse = torch.stack(x_fuse)
 

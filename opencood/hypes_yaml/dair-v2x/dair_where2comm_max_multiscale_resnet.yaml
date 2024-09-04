@@ -9,6 +9,7 @@ root_dir: "dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure/train.js
 validate_dir: "dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure/val.json"
 test_dir: "dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure/val.json"
 resume: "opencood/logs/devel_logs/dair_where2comm_max_multiscale_resnet_2024_08_23_20_32_26/net_epoch29.pth"
+# resume: ""
 
 noise_setting:
   add_noise: False
@@ -22,10 +23,10 @@ noise_setting:
 
 yaml_parser: "load_point_pillar_params"
 train_params:
-  batch_size: &batch_size 1  # 6
+  batch_size: &batch_size 2  # 6
   epoches: 70  # 30   120
-  eval_freq: 5  # 2  5 
-  save_freq: 5  # 2  5
+  eval_freq: 2  # 2  5 
+  save_freq: 2  # 2  5
   max_cav: &max_cav 2
 
 
@@ -88,8 +89,8 @@ model:
     anchor_number: *achor_num
     max_cav: *max_cav
     compression: 0 # compression rate
-    vehicle_fix: false  # 
-    infra_fix: true
+    vehicle_fix: false
+    infra_fix: false
     fusion_fix: false
 
     pillar_vfe:

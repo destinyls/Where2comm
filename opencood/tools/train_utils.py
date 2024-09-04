@@ -105,7 +105,7 @@ def load_model(saved_path, model):
     state_dict = {}
     # convert data_parallal to model
     for k in state_dict_:
-        if 'model_infra' not in k:
+        if 'model_infra' not in k:   # 只加载infra端权重
             continue
         if k.startswith('module') and not k.startswith('module_list'):
             state_dict[k[7:]] = state_dict_[k]

@@ -55,11 +55,11 @@ class PointPillar(nn.Module):
         # n, 4 -> n, c
         batch_dict = self.pillar_vfe(batch_dict)
         # n, c -> N, C, H, W
-        batch_dict = self.scatter(batch_dict)
-        batch_dict = self.backbone(batch_dict)
+        batch_dict = self.scatter(batch_dict)  # batch_dict add['spatial_features]
+        batch_dict = self.backbone(batch_dict) # batch_dict add['spatial_features_2d]
         # N, C, H', W'. [N, 384, 100, 352]
         spatial_features = batch_dict['spatial_features']
-        spatial_features_2d = batch_dict['spatial_features_2d']
+        spatial_features_2d = batch_dict['spatial_features_2d']  # [batch_size, 384,100,252]
         
         # downsample feature to reduce memory
         if self.shrink_flag:
@@ -122,8 +122,8 @@ class PointPillarWhere2comm(nn.Module):
 
         if args['fusion_fix']:
             self.fusion_fix()
-
-    def fusion_fix(self):
+            
+    def fusion_fix(self):     # 冻结参数
         for p in self.fusion_net.parameters():
             p.requires_grad = False
         for p in self.cls_head.parameters():
@@ -164,7 +164,6 @@ class PointPillarWhere2comm(nn.Module):
                         'record_len': record_len}
         return batch_dict_v, batch_dict_i
 
-    # def forward(self, data_dict):
     def forward(self, data_dict, dataset):
         voxel_features = data_dict['processed_lidar']['voxel_features']
         voxel_coords = data_dict['processed_lidar']['voxel_coords']
@@ -207,7 +206,7 @@ class PointPillarWhere2comm(nn.Module):
             middle_data_dict_list.append(middle_data_dict)
 
         psm_single, spatial_features, spatial_features_2d = [], [], []
-        for i in range(psm_single_v.shape[0]):
+        for i in range(psm_single_v.shape[0]):  # batch_size
             psm_single.append(psm_single_v[i, :, :, :])
             psm_single.append(psm_single_i[i, :, :, :])
         for i in range(spatial_features_v.shape[0]):
@@ -220,7 +219,7 @@ class PointPillarWhere2comm(nn.Module):
         spatial_features = torch.stack(spatial_features, dim=0)
         spatial_features_2d = torch.stack(spatial_features_2d, dim=0)
         
-        if self.multi_scale:
+        if self.multi_scale: # True
             fused_feature, communication_rates, result_dict, loss_mae = self.fusion_net(spatial_features,
                                             psm_single,
                                             record_len,

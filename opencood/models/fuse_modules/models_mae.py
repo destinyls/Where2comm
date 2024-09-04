@@ -201,7 +201,7 @@ class MaskedAutoencoderViT(nn.Module):
 
         return x
 
-    def forward_loss(self, imgs, pred, mask):
+    def forward_loss(self, imgs, pred, mask):   # 计算mae_loss
         """
         imgs: [N, 3, H, W]
         pred: [N, L, p*p*3]
@@ -223,8 +223,10 @@ class MaskedAutoencoderViT(nn.Module):
         latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio)
         pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*3]
         target = self.patchify(imgs)
-        pred = pred * mask.unsqueeze(-1) + target * (1 - mask).unsqueeze(-1)
-        # loss = self.forward_loss(imgs, pred, mask)
+        # pred = pred * mask.unsqueeze(-1) + target * (1 - mask).unsqueeze(-1)    # 遮掩块预测值+非掩盖块的真实值
+        # print("1. ", torch.sum(torch.abs(pred) > 0) / (pred.shape[0] * pred.shape[1] * pred.shape[2]))  # 非0元素占比
+        pred = target * (1 - mask).unsqueeze(-1)  # 仅非遮掩块的真实值
+        # print("2. ", torch.sum(torch.abs(pred) > 0) / (pred.shape[0] * pred.shape[1] * pred.shape[2]))
         return pred, mask
 
 def mae_vit_custom_patch1_dec512d8b(img_size, patch_size, in_chans, norm_pix_loss=False):
@@ -248,14 +250,12 @@ def mae_vit_base_patch16_dec512d8b(**kwargs):
         mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model
 
-
 def mae_vit_large_patch16_dec512d8b(**kwargs):
     model = MaskedAutoencoderViT(
         patch_size=16, embed_dim=1024, depth=24, num_heads=16,
         decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
         mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model
-
 
 def mae_vit_huge_patch14_dec512d8b(**kwargs):
     model = MaskedAutoencoderViT(
@@ -265,7 +265,7 @@ def mae_vit_huge_patch14_dec512d8b(**kwargs):
     return model
 
 
-# set recommended archs
+# set recommended archs   参数不同的MaskedAutoencoderViT
 mae_vit_base_patch16 = mae_vit_base_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
 mae_vit_large_patch16 = mae_vit_large_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
 mae_vit_huge_patch14 = mae_vit_huge_patch14_dec512d8b  # decoder: 512 dim, 8 blocks

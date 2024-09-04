@@ -1,0 +1,44 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "debug Train",
+        "type": "python",
+        "request": "launch",
+        "program": "${workspaceFolder}/opencood/tools/train_single.py",
+        "args": [
+          "--hypes_yaml",
+          "${workspaceFolder}/opencood/hypes_yaml/dair-v2x/dair_where2comm_max_multiscale_resnet.yaml",
+        //   "--model_dir",
+        //   "${workspaceFolder}/opencood/logs/mae_logs/dair_where2comm_max_multiscale_resnet_2024_08_26_09_07_27"
+        ],
+        "env": {
+          "CUDA_VISIBLE_DEVICES": "1"
+        },
+        "console": "integratedTerminal",
+        "justMyCode": false
+      },
+
+      {
+        "name": "debug Inference",
+        "type": "python",
+        "request": "launch",
+        "program": "${workspaceFolder}/opencood/tools/inference.py",
+        "args": [
+          "--model_dir",
+          "${workspaceFolder}/opencood/logs/mae_logs/dair_where2comm_max_multiscale_resnet_2024_08_26_22_21_59",
+          "--fusion_method",
+          "intermediate_with_comm"
+        ],
+        "env": {
+          "CUDA_VISIBLE_DEVICES": "1"
+        },
+        "console": "integratedTerminal",
+        "justMyCode": false
+      }
+
+
+
+    ]
+  }
+  

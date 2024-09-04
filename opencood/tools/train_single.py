@@ -48,9 +48,7 @@ def main_worker(local_rank, nprocs, opt):
 
     print('Dataset Building')
     opencood_train_dataset = build_dataset(hypes, visualize=False, train=True)
-    opencood_validate_dataset = build_dataset(hypes,
-                                              visualize=False,
-                                              train=False)
+    opencood_validate_dataset = build_dataset(hypes,visualize=False, train=False)
     
     bs = int(hypes['train_params']['batch_size'] / 1)
     distributed = False
@@ -96,7 +94,7 @@ def main_worker(local_rank, nprocs, opt):
         scheduler = train_utils.setup_lr_schedular(hypes, optimizer, init_epoch=init_epoch)
     else:
         if hypes['resume'] is not None:
-            model = train_utils.load_model(hypes['resume'], model.module if distributed else model)
+            model = train_utils.load_model(hypes['resume'], model.module if distributed else model)   # 只加载infra端权重
         init_epoch = 0
         # if we train the model from scratch, we need to create a folder
         # to save the model,
@@ -148,7 +146,7 @@ def main_worker(local_rank, nprocs, opt):
                 if 'psm_single_i' in output_dict.keys():
                     single_loss_i = criterion(output_dict, batch_data['ego']['label_dict_single_i'], prefix='_single_i')
                 if 'fusion_args' in hypes['model']['args']:
-                    if 'communication' in hypes['model']['args']['fusion_args']:
+                    if 'communication' in hypes['model']['args']['fusion_args']:  # 目前 没有参数communication
                         comm = hypes['model']['args']['fusion_args']['communication']
                         if ('round' in comm) and comm['round'] > 1:
                             round_loss_v = 0

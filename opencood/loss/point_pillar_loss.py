@@ -83,6 +83,7 @@ class PointPillarLoss(nn.Module):
         self.use_dir = False
 
     def forward(self, output_dict, target_dict, prefix=''):
+        # 只加载prefix对应的数据
         """
         Parameters
         ----------

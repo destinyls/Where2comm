@@ -374,7 +374,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
             # if distance > self.params['comm_range']:
             #     too_far.append(cav_id)
             #     continue
-
+            # 没有检查通信距离   全特征图
             lidar_pose_clean_list.append(selected_cav_base['params']['lidar_pose_clean'])
             lidar_pose_list.append(selected_cav_base['params']['lidar_pose']) # 6dof pose
             cav_id_list.append(cav_id)
@@ -738,7 +738,6 @@ class IntermediateFusionDatasetDAIR(Dataset):
 
         return output_dict
 
-    
     def get_pairwise_transformation(self, base_data_dict, max_cav):
         """
         Get pair-wise transformation matrix accross different agents.
@@ -815,7 +814,6 @@ class IntermediateFusionDatasetDAIR(Dataset):
                 else:
                     merged_feature_dict[feature_name].append(feature) # merged_feature_dict['coords'] = [f1,f2,f3,f4]
         return merged_feature_dict
-    
     '''
     def post_process(self, data_dict, output_dict):
         """
@@ -854,6 +852,8 @@ class IntermediateFusionDatasetDAIR(Dataset):
 
         output_dict :dict
             The dictionary containing the output of the model.
+        
+        selected_agent : 
 
         Returns
         -------
