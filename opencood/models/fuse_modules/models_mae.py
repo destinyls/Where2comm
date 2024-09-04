@@ -223,9 +223,9 @@ class MaskedAutoencoderViT(nn.Module):
         latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio)
         pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*3]
         target = self.patchify(imgs)
-        # pred = pred * mask.unsqueeze(-1) + target * (1 - mask).unsqueeze(-1)    # 遮掩块预测值+非掩盖块的真实值
+        pred = pred * mask.unsqueeze(-1) + target * (1 - mask).unsqueeze(-1)    # 遮掩块预测值+非掩盖块的真实值
         # print("1. ", torch.sum(torch.abs(pred) > 0) / (pred.shape[0] * pred.shape[1] * pred.shape[2]))  # 非0元素占比
-        pred = target * (1 - mask).unsqueeze(-1)  # 仅非遮掩块的真实值
+        # pred = target * (1 - mask).unsqueeze(-1)  # 仅非遮掩块的真实值
         # print("2. ", torch.sum(torch.abs(pred) > 0) / (pred.shape[0] * pred.shape[1] * pred.shape[2]))
         return pred, mask
 

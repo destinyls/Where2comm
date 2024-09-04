@@ -204,7 +204,9 @@ class Where2comm(nn.Module):
         self.gaussian = Gaussian(args)
         self.downsample_factor = {100: (20, 36, 2), 50: (10, 18, 1), 25: (5, 9, 1)}
         
-        self.enable_mae = args['enable_mae']
+        self.enable_mae = args['mae']['enable']
+        if self.enable_mae:
+            self.mask_ratio = args['mae']['mask_ratio']
 
         if self.multi_scale:  # True
             layer_nums = args['layer_nums']
@@ -347,7 +349,7 @@ class Where2comm(nn.Module):
                         infra_features = infra_features.view(infra_features.shape[0], -1, downsample_factor_h, downsample_factor_w)
                         infra_features = infra_features.permute(1, 0, 2, 3).contiguous()
 
-                        pred, mask = self.mae_modules[i](infra_features, mask_ratio=0.9)  # random masked feature filtering and reconstruction   mask_ratio=0.9  0.95 0.7 0.5
+                        pred, mask = self.mae_modules[i](infra_features, mask_ratio=self.mask_ratio)  # random masked feature filtering and reconstruction   mask_ratio=0.9 0.95 0.7 0.5
                         hw = self.mae_modules[i].get_hw(infra_features)
                         mask = self.mae_modules[i].unpatchify(mask.unsqueeze(-1).repeat(1, 1, int(self.mae_modules[i].patch_embed.patch_size[0])**2), hw)                    
                         mask = self.mae_modules[i].patchify(mask)[:, :, 0]

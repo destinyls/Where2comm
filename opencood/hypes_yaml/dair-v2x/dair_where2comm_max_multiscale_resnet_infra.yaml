@@ -1,14 +1,10 @@
 name: dair_where2comm_max_multiscale_resnet
 
-# data_dir: "datasets/dair-v2x-c/training"
-# root_dir: "datasets/dair-v2x-c/training/train.json"
-# validate_dir: "datasets/dair-v2x-c/training/val.json"
-# test_dir: "datasets/dair-v2x-c/training/val.json"
 data_dir: "dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure"
 root_dir: "dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure/train.json"
 validate_dir: "dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure/val.json"
 test_dir: "dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure/val.json"
-resume: "opencood/logs/devel_logs/dair_where2comm_max_multiscale_resnet_2024_08_23_20_32_26/net_epoch29.pth"
+resume: null
 
 noise_setting:
   add_noise: False
@@ -143,8 +139,8 @@ model:
       multi_scale: true
       layer_nums: *layer_nums
       num_filters: *num_filters
-      enable_mae: true
-
+      mae: 
+        enable: False
 
 loss:
   core_method: point_pillar_loss
