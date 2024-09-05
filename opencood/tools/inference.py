@@ -29,7 +29,7 @@ def test_parser():
     parser.add_argument('--fusion_method', type=str,
                         default='intermediate',
                         help='no, no_w_uncertainty, late, early or intermediate')
-    parser.add_argument('--save_vis_n', type=int, default=10,
+    parser.add_argument('--save_vis_n', type=int, default=0,
                         help='save how many numbers of visualization result?')
     parser.add_argument('--save_npy', action='store_true',
                         help='whether to save prediction and gt result'
@@ -85,14 +85,14 @@ def result2dict(box3d_tensor, score_tensor):
     return output_dict
 
 
-def evaluation(model, data_loader, opt, opencood_dataset, device, test_inference, hypes, left_hand, epoch_id):
+def evaluation(model, data_loader, opt, opencood_dataset, device, test_inference, hypes, left_hand, epoch_id, agent_staus):
     # Create the dictionary for evaluation
     result_stat = {0.3: {'tp': [], 'fp': [], 'gt': 0},
                    0.5: {'tp': [], 'fp': [], 'gt': 0},
                    0.7: {'tp': [], 'fp': [], 'gt': 0}}
     evaluator = Evaluator(["car"])
     total_comm_rates = []
-    # total_box = []
+
     for i, batch_data in tqdm(enumerate(data_loader)):
         with torch.no_grad():
             batch_data = train_utils.to_device(batch_data, device)
@@ -194,23 +194,25 @@ def evaluation(model, data_loader, opt, opencood_dataset, device, test_inference
     else:
         comm_rates = 0
     ap_30, ap_50, ap_70 = eval_utils.eval_final_results(result_stat, opt.model_dir)
-    with open(os.path.join(opt.model_dir, str(epoch_id) + '_result.txt'), 'a+') as f:
+    with open(os.path.join(opt.model_dir, agent_staus + 'result.txt'), 'a+') as f:
         msg = 'Epoch: {} | AP @0.3: {:.04f} | AP @0.5: {:.04f} | AP @0.7: {:.04f} | comm_rate: {:.06f}\n'.format(epoch_id, ap_30, ap_50, ap_70, comm_rates)
         if opt.comm_thre is not None:
             msg = 'Epoch: {} | AP @0.3: {:.04f} | AP @0.5: {:.04f} | AP @0.7: {:.04f} | comm_rate: {:.06f} | comm_thre: {:.04f}\n'.format(epoch_id, ap_30, ap_50, ap_70, comm_rates, opt.comm_thre)
         f.write(msg)
         print(msg)
 
-    '''
-    print("official metric")
-    evaluator.print_ap("3d")
-    evaluator.print_ap("bev")
-    '''
-
-def main():
+def inference_status(agent_staus):
     opt = test_parser()
     assert opt.fusion_method in ['late', 'early', 'intermediate', 'intermediate_with_comm', 'no']
     hypes = yaml_utils.load_yaml(None, opt)
+    
+    if agent_staus == "V+I":
+        hypes['postprocess']['selected_agent'] = 2
+    elif agent_staus == "singleV":
+        hypes['postprocess']['selected_agent'] = 0
+    elif agent_staus == "singleI":
+        hypes['postprocess']['selected_agent'] = 1
+        
     if opt.comm_thre is not None:
         hypes['model']['args']['fusion_args']['communication']['thre'] = opt.comm_thre
     hypes['validate_dir'] = hypes['test_dir']
@@ -218,7 +220,7 @@ def main():
     test_inference = False
     if "test.json" in hypes['test_dir']:
         test_inference = True
-    # assert "test" in hypes['validate_dir']
+
     left_hand = True if "OPV2V" in hypes['test_dir'] else False
     print(f"Left hand visualizing: {left_hand}")
 
@@ -243,7 +245,17 @@ def main():
         epoch_id = int(model_name.split('.')[0][9:])
         epoch_id, model = train_utils.load_saved_model(opt.model_dir, model, epoch_id)
         model.eval()
-        evaluation(model, data_loader, opt, opencood_dataset, device, test_inference, hypes, left_hand, epoch_id)
+
+        evaluation(model, data_loader, opt, opencood_dataset, device, test_inference, hypes, left_hand, epoch_id, agent_staus)
+    
+
+def main():
+    # eval V+I
+    inference_status("V+I")
+    # eval singleV
+    inference_status("singleV")
+    # eval singleI
+    inference_status("singleI")
 
 if __name__ == '__main__':
     main()

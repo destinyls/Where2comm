@@ -370,7 +370,6 @@ class Where2comm(nn.Module):
                         infra_features_mae = infra_features_mae.permute(0, 1, 3, 2, 4).contiguous()
                         infra_features_mae = infra_features_mae.view(1, c, h, w)
 
-                        # infra_features_mae[:,:,:] = 0.0  # 置0 
                         node_features = torch.cat((node_features[0].unsqueeze(0), infra_features_mae), dim=0)   # node_features[0] vehicle
                         neighbor_feature = warp_affine_simple(node_features, t_matrix[0, :, :, :], (H, W))    # 通过affine trans  空间对齐不同来源的特征
                         fuse_feature = self.fuse_modules[i](neighbor_feature)  # fuse feature
