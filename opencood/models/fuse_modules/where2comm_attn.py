@@ -325,12 +325,14 @@ class Where2comm(nn.Module):
                     if  not self.enable_mae:
                         neighbor_feature = warp_affine_simple(node_features, t_matrix[0, :, :, :], (H, W))    # 通过affine trans  空间对齐不同来源的特征
                         fuse_feature = self.fuse_modules[i](neighbor_feature)  # fuse feature
+                        # veh_features, infra_features = node_features[0].unsqueeze(0), node_features[1].unsqueeze(0)
+                        # fuse_feature = veh_features
                     else:    
                         pred_box_infra, pred_score_infra, sample_idx = pred_box_infra_list[b], pred_score_infra_list[b], sample_idx_list[b]
-                        gaussian_maps = self.gaussian(pred_box_infra, torch.zeros_like(node_features[1].unsqueeze(0)), i, sample_idx)                           
+                        gaussian_maps = self.gaussian(pred_box_infra, torch.zeros_like(node_features[1].unsqueeze(0)), i, sample_idx)                      
                         # veh_features, infra_features = node_features[0].unsqueeze(0), node_features[1].unsqueeze(0)
                         
-                        infra_features = node_features[1].unsqueeze(0) * (gaussian_maps > 0).float()         
+                        infra_features = node_features[1].unsqueeze(0) * (gaussian_maps > 0).float()  
                         n, c, h, w = infra_features.shape[0], infra_features.shape[1], infra_features.shape[2], infra_features.shape[3]
                         # infra_features = node_features[1].unsqueeze(0)
                         # node_features = torch.cat((node_features[0].unsqueeze(0), infra_features), dim=0) 
@@ -349,7 +351,7 @@ class Where2comm(nn.Module):
                         infra_features = infra_features.view(infra_features.shape[0], -1, downsample_factor_h, downsample_factor_w)
                         infra_features = infra_features.permute(1, 0, 2, 3).contiguous()
 
-                        pred, mask = self.mae_modules[i](infra_features, mask_ratio=self.mask_ratio)  # random masked feature filtering and reconstruction   mask_ratio=0.9 0.95 0.7 0.5
+                        pred, mask = self.mae_modules[i](infra_features, mask_ratio=self.mask_ratio)  # random masked feature filtering and reconstruction
                         hw = self.mae_modules[i].get_hw(infra_features)
                         mask = self.mae_modules[i].unpatchify(mask.unsqueeze(-1).repeat(1, 1, int(self.mae_modules[i].patch_embed.patch_size[0])**2), hw)                    
                         mask = self.mae_modules[i].patchify(mask)[:, :, 0]

@@ -194,7 +194,8 @@ def evaluation(model, data_loader, opt, opencood_dataset, device, test_inference
     else:
         comm_rates = 0
     ap_30, ap_50, ap_70 = eval_utils.eval_final_results(result_stat, opt.model_dir)
-    with open(os.path.join(opt.model_dir, agent_staus + 'result.txt'), 'a+') as f:
+    with open(os.path.join(opt.model_dir, agent_staus + '_095_result.txt'), 'a+') as f:
+    # with open(os.path.join(opt.model_dir, agent_staus + 'result.txt'), 'a+') as f:
         msg = 'Epoch: {} | AP @0.3: {:.04f} | AP @0.5: {:.04f} | AP @0.7: {:.04f} | comm_rate: {:.06f}\n'.format(epoch_id, ap_30, ap_50, ap_70, comm_rates)
         if opt.comm_thre is not None:
             msg = 'Epoch: {} | AP @0.3: {:.04f} | AP @0.5: {:.04f} | AP @0.7: {:.04f} | comm_rate: {:.06f} | comm_thre: {:.04f}\n'.format(epoch_id, ap_30, ap_50, ap_70, comm_rates, opt.comm_thre)
@@ -252,10 +253,10 @@ def inference_status(agent_staus):
 def main():
     # eval V+I
     inference_status("V+I")
-    # eval singleV
-    inference_status("singleV")
-    # eval singleI
-    inference_status("singleI")
+    # # eval singleV
+    # inference_status("singleV")
+    # # eval singleI
+    # inference_status("singleI")
 
 if __name__ == '__main__':
     main()

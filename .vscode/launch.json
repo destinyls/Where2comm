@@ -5,12 +5,10 @@
         "name": "debug Train",
         "type": "python",
         "request": "launch",
-        "program": "${workspaceFolder}/opencood/tools/train_single.py",
+        "program": "${workspaceFolder}/opencood/tools/train_singleGPU.py",
         "args": [
           "--hypes_yaml",
-          "${workspaceFolder}/opencood/hypes_yaml/dair-v2x/dair_where2comm_max_multiscale_resnet_infra.yaml",
-        //   "--model_dir",
-        //   "${workspaceFolder}/opencood/logs/mae_logs/dair_where2comm_max_multiscale_resnet_2024_08_26_09_07_27"
+          "${workspaceFolder}/opencood/hypes_yaml/dair-v2x/dair_where2comm_max_multiscale_resnet_vehicle.yaml",
         ],
         "env": {
           "CUDA_VISIBLE_DEVICES": "1"
@@ -26,7 +24,7 @@
         "program": "${workspaceFolder}/opencood/tools/inference.py",
         "args": [
           "--model_dir",
-          "${workspaceFolder}/opencood/logs/no_mae_logs/dair_where2comm_max_multiscale_resnet_2024_09_04_23_11_03",
+          "${workspaceFolder}/opencood/logs/mae_logs/dair_where2comm_max_multiscale_resnet_2024_09_05_23_01_05",
           "--fusion_method",
           "intermediate_with_comm"
         ],

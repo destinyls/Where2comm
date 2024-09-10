@@ -220,12 +220,12 @@ class MaskedAutoencoderViT(nn.Module):
         return loss * 5
 
     def forward(self, imgs, mask_ratio=0.75):
-        latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio)
-        pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*3]
+        latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio)  # random_mask
+        pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*3]  # mask reconstruction
         target = self.patchify(imgs)
-        pred = pred * mask.unsqueeze(-1) + target * (1 - mask).unsqueeze(-1)    # 遮掩块预测值+非掩盖块的真实值
+        pred = pred * mask.unsqueeze(-1) + target * (1 - mask).unsqueeze(-1)    # 重建被mask的部分 + 没有被mask部分的真实值
         # print("1. ", torch.sum(torch.abs(pred) > 0) / (pred.shape[0] * pred.shape[1] * pred.shape[2]))  # 非0元素占比
-        # pred = target * (1 - mask).unsqueeze(-1)  # 仅非遮掩块的真实值
+        # pred = target * (1 - mask).unsqueeze(-1)  # 没有被mask部分的真实值   即 不重建
         # print("2. ", torch.sum(torch.abs(pred) > 0) / (pred.shape[0] * pred.shape[1] * pred.shape[2]))
         return pred, mask
 
@@ -269,4 +269,4 @@ def mae_vit_huge_patch14_dec512d8b(**kwargs):
 mae_vit_base_patch16 = mae_vit_base_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
 mae_vit_large_patch16 = mae_vit_large_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
 mae_vit_huge_patch14 = mae_vit_huge_patch14_dec512d8b  # decoder: 512 dim, 8 blocks
-mae_vit_custom_patch1 = mae_vit_custom_patch1_dec512d8b  # decoder: 512 dim, 8 blocks
+mae_vit_custom_patch1 = mae_vit_custom_patch1_dec512d8b  # decoder: 512 dim, 8 blocks  目前用这个
