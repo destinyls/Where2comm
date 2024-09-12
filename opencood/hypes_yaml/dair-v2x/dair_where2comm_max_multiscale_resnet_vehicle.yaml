@@ -1,5 +1,5 @@
 name: dair_where2comm_max_multiscale_resnet
-
+# freeze infra
 # data_dir: "datasets/dair-v2x-c/training"
 # root_dir: "datasets/dair-v2x-c/training/train.json"
 # validate_dir: "datasets/dair-v2x-c/training/val.json"
@@ -24,8 +24,8 @@ yaml_parser: "load_point_pillar_params"
 train_params:
   batch_size: &batch_size 2  # 6
   epoches: 70  # 30   120
-  eval_freq: 2  # 2  5 
-  save_freq: 2  # 2  5
+  eval_freq: 4  # 2 
+  save_freq: 4  # 2
   max_cav: &max_cav 2
 
 
@@ -89,7 +89,7 @@ model:
     max_cav: *max_cav
     compression: 0 # compression rate
     vehicle_fix: false
-    infra_fix: false
+    infra_fix: true
     fusion_fix: false
 
     pillar_vfe:
@@ -145,7 +145,7 @@ model:
       num_filters: *num_filters
       mae: 
         enable: true
-        mask_ratio: 0.7  # 0.9 0.95 0.7 0.5
+        mask_ratio: 0.95  # 0.9 0.95 0.7 0.5
 
 
 loss:

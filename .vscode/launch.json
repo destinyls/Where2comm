@@ -8,10 +8,10 @@
         "program": "${workspaceFolder}/opencood/tools/train_singleGPU.py",
         "args": [
           "--hypes_yaml",
-          "${workspaceFolder}/opencood/hypes_yaml/dair-v2x/dair_where2comm_max_multiscale_resnet_vehicle.yaml",
+          "${workspaceFolder}/opencood/hypes_yaml/dair-v2x/dair_where2comm_max_multiscale_resnet_infra.yaml",
         ],
         "env": {
-          "CUDA_VISIBLE_DEVICES": "1"
+          "CUDA_VISIBLE_DEVICES": "4"
         },
         "console": "integratedTerminal",
         "justMyCode": false

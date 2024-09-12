@@ -142,3 +142,6 @@ opv2v_data_dumping
 checkpoints
 DCOS.md
 spconv/
+dataset/
+opencood/logs/
+opencood/dataset/

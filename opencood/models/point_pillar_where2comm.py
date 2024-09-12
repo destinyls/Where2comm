@@ -114,7 +114,6 @@ class PointPillarWhere2comm(nn.Module):
 
         self.model_infra = PointPillar(args, args['infra_fix'])
         self.model_vehicle = PointPillar(args, args['vehicle_fix'])
-        # self.fusion_net = TransformerFusion(args['fusion_args'])
         self.fusion_net = Where2comm(args['fusion_args'])
         self.multi_scale = args['fusion_args']['multi_scale']
         self.cls_head = nn.Conv2d(128 * 2, args['anchor_number'], kernel_size=1)

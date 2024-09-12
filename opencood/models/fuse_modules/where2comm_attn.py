@@ -323,10 +323,12 @@ class Where2comm(nn.Module):
                     node_features = batch_node_features[b]
                     C, H, W = node_features.shape[1:]
                     if  not self.enable_mae:
-                        neighbor_feature = warp_affine_simple(node_features, t_matrix[0, :, :, :], (H, W))    # 通过affine trans  空间对齐不同来源的特征
-                        fuse_feature = self.fuse_modules[i](neighbor_feature)  # fuse feature
-                        # veh_features, infra_features = node_features[0].unsqueeze(0), node_features[1].unsqueeze(0)
-                        # fuse_feature = veh_features
+                        # 
+                        # neighbor_feature = warp_affine_simple(node_features, t_matrix[0, :, :, :], (H, W))  
+                        # fuse_feature = self.fuse_modules[i](neighbor_feature)  # fuse feature
+                        # 
+                        veh_features, infra_features = node_features[0].unsqueeze(0), node_features[1].unsqueeze(0)
+                        fuse_feature = veh_features.squeeze(0)
                     else:    
                         pred_box_infra, pred_score_infra, sample_idx = pred_box_infra_list[b], pred_score_infra_list[b], sample_idx_list[b]
                         gaussian_maps = self.gaussian(pred_box_infra, torch.zeros_like(node_features[1].unsqueeze(0)), i, sample_idx)                      
