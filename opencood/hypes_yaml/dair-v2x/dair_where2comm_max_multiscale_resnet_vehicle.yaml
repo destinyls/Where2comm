@@ -1,9 +1,5 @@
 name: dair_where2comm_max_multiscale_resnet
 # freeze infra
-# data_dir: "datasets/dair-v2x-c/training"
-# root_dir: "datasets/dair-v2x-c/training/train.json"
-# validate_dir: "datasets/dair-v2x-c/training/val.json"
-# test_dir: "datasets/dair-v2x-c/training/val.json"
 data_dir: "dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure"
 root_dir: "dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure/train.json"
 validate_dir: "dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure/val.json"
@@ -23,9 +19,9 @@ noise_setting:
 yaml_parser: "load_point_pillar_params"
 train_params:
   batch_size: &batch_size 2  # 6
-  epoches: 70  # 30   120
-  eval_freq: 4  # 2 
-  save_freq: 4  # 2
+  epoches: 55  #    70
+  eval_freq: 2  # 2 
+  save_freq: 2  # 2
   max_cav: &max_cav 2
 
 
@@ -143,9 +139,10 @@ model:
       multi_scale: true
       layer_nums: *layer_nums
       num_filters: *num_filters
-      mae: 
-        enable: true
-        mask_ratio: 0.95  # 0.9 0.95 0.7 0.5
+      para:  
+        mode:  onlyMask   # baseline; onlyVehFea; maskAndRec; onlyMask
+        mask_ratio:  0.8 # 0.5 0.7 0.9 0.95
+
 
 
 loss:
@@ -165,4 +162,6 @@ lr_scheduler:
   core_method: multistep #step, multistep and Exponential support
   gamma: 0.1
   step_size: [10, 20]
+
+
 

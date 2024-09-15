@@ -122,7 +122,7 @@ class PointPillarWhere2comm(nn.Module):
         if args['fusion_fix']:
             self.fusion_fix()
             
-    def fusion_fix(self):     # 冻结参数
+    def fusion_fix(self):    
         for p in self.fusion_net.parameters():
             p.requires_grad = False
         for p in self.cls_head.parameters():

@@ -219,18 +219,19 @@ class MaskedAutoencoderViT(nn.Module):
         loss = (loss * mask).sum() / mask.sum()  # mean loss on removed patches
         return loss * 5
 
-    # def forward(self, imgs, mask_ratio=0.75):
-    #     latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio)  # random_mask
-    #     pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*3]  # mask reconstruction
-    #     target = self.patchify(imgs)
-    #     pred = pred * mask.unsqueeze(-1) + target * (1 - mask).unsqueeze(-1)    # 重建被mask的部分 + 没有被mask部分的真实值
-    #     return pred, mask
-    
     def forward(self, imgs, mask_ratio=0.75):
         latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio)  # random_mask
+        pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*3]  # mask reconstruction
+        target = self.patchify(imgs)
+        pred = pred * mask.unsqueeze(-1) + target * (1 - mask).unsqueeze(-1)    # 重建被mask的部分 + 没有被mask部分的真实值
+        return pred, mask
+    
+    def only_mask(self, imgs, mask_ratio=0.75):
+        _, mask, _ = self.forward_encoder(imgs, mask_ratio) 
         target = self.patchify(imgs)
         pred = target * (1 - mask).unsqueeze(-1)  # 没有被mask部分的真实值   即 不重建
         return pred, mask
+        
 
 def mae_vit_custom_patch1_dec512d8b(img_size, patch_size, in_chans, norm_pix_loss=False):
     model = MaskedAutoencoderViT(img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=384, 

@@ -144,9 +144,9 @@ def main_worker(local_rank, nprocs, opt):
             
             if len(output_dict) > 2:
                 final_loss += single_loss_v + single_loss_i 
-                # if loss_mae is not None:   # 不加loss_mae
-                #     final_loss += loss_mae
-                #     criterion.add_loss_dict("mae_loss_single", loss_mae)
+                if loss_mae is not None:
+                    final_loss += loss_mae
+                    criterion.add_loss_dict("mae_loss_single", loss_mae)
                 if with_round_loss:
                     final_loss += round_loss_v
 
@@ -163,7 +163,7 @@ def main_worker(local_rank, nprocs, opt):
 
             torch.cuda.empty_cache()
 
-        if epoch % hypes['train_params']['save_freq'] == 0 and local_rank == 0 and epoch > 25:  #  因为epoch数太大   save_freq=5  仅保存25 epoch之后的
+        if epoch % hypes['train_params']['save_freq'] == 0 and local_rank == 0 and epoch > 15:  #  因为epoch数太大   save_freq=5  仅保存25 epoch之后的
             torch.save(model.state_dict(),
                        os.path.join(saved_path,
                                     'net_epoch%d.pth' % (epoch + 1)))
@@ -171,11 +171,11 @@ def main_worker(local_rank, nprocs, opt):
 
     print('Training Finished, checkpoints saved to %s' % saved_path)
     torch.cuda.empty_cache()
-    # run_test = True
-    # if run_test:
-    #     cmd = f"python /home/yanglei/code/Where2comm/opencood/tools/inference.py --model_dir {saved_path} --fusion_method intermediate_with_comm"
-    #     print(f"Running command: {cmd}")
-    #     os.system(cmd)
+    run_test = True
+    if run_test:
+        cmd = f"python /home/yanglei/code/Where2comm/opencood/tools/inference_.py --model_dir {saved_path} --fusion_method intermediate_with_comm"
+        print(f"Running command: {cmd}")
+        os.system(cmd)
 
 if __name__ == '__main__':
     opt = train_parser()
