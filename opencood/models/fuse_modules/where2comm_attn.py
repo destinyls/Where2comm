@@ -20,6 +20,7 @@ from opencood.models.comm_modules.where2comm import Communication
 from opencood.visualization import simple_vis
 from opencood.models.fuse_modules.gaussian import Gaussian
 from opencood.models.fuse_modules.models_mae import mae_vit_custom_patch1
+from opencood.models.fuse_modules.how2comm_preprocess import How2commPreprocess
 
 class ScaledDotProductAttention(nn.Module):
     """
@@ -207,7 +208,10 @@ class Where2comm(nn.Module):
         self.mode = args['para']['mode']
         if self.mode == "maskAndRec" or self.mode == "onlyMask":
             self.mask_ratio = args['para']['mask_ratio']
-
+        
+        self.his_flag = args['para']['his_flag']
+        self.how2comm = How2commPreprocess(args['para'])
+        
         if self.multi_scale:  # True
             layer_nums = args['layer_nums']
             num_filters = args['num_filters']
@@ -249,7 +253,7 @@ class Where2comm(nn.Module):
         split_x = torch.tensor_split(x, cum_sum_len[:-1].cpu())
         return split_x
 
-    def forward(self, x, rm, record_len, pairwise_t_matrix, dataset, data_dict, output_dict, backbone=None, heads=None):
+    def forward(self, x, rm, record_len, pairwise_t_matrix, dataset, data_dict, output_dict, backbone=None, heads=None, his_features=None):
         """
         Fusion forwarding.
         
@@ -268,7 +272,7 @@ class Where2comm(nn.Module):
         Returns
         -------
         Fused feature.
-        """
+        """        
         _, C, H, W = x.shape
         B, L = pairwise_t_matrix.shape[:2]
 
@@ -279,20 +283,27 @@ class Where2comm(nn.Module):
         pairwise_t_matrix[...,0,2] = pairwise_t_matrix[...,0,2] / (self.downsample_rate * self.discrete_ratio * W) * 2
         pairwise_t_matrix[...,1,2] = pairwise_t_matrix[...,1,2] / (self.downsample_rate * self.discrete_ratio * H) * 2
 
+        if his_features != []:
+            infra_predict_feature, loss_offset = self.how2comm(x, his_features, record_len) 
+        else:
+            loss_offset = torch.zeros(1).to(x.device)
+                
         if self.multi_scale:   # True
             pred_box_infra_list, pred_score_infra_list, sample_idx_list = [], [], []
+            
             for b in range(B):
                 pred_box_infra, pred_score_infra = dataset.post_process(data_dict[b], output_dict[b], selected_agent=1, middle_post_process=True)  # infra
                 sample_idx = data_dict[b]['sample_idx']
                 pred_box_infra_list.append(pred_box_infra)
                 pred_score_infra_list.append(pred_score_infra)
                 sample_idx_list.append(sample_idx)
-
+                
             ups = []
-            # backbone.__dict__()
             with_resnet = True if hasattr(backbone, 'resnet') else False
             if with_resnet:
                 feats = backbone.resnet(x)
+                if his_features != []:
+                    infra_prefea = backbone.resnet(infra_predict_feature)
             
             loss_mae = None
             for i in range(self.num_levels):
@@ -325,7 +336,7 @@ class Where2comm(nn.Module):
                         neighbor_feature = warp_affine_simple(node_features, t_matrix[0, :, :, :], (H, W))  
                         fuse_feature = self.fuse_modules[i](neighbor_feature)   # [2, 64, 100, 252]
                     elif self.mode == "onlyVehFea":
-                        fuse_feature = node_features[0].unsqueeze(0)  # torch.Size([64, 100, 252])
+                        fuse_feature = node_features[0] # torch.Size([64, 100, 252])
                     elif self.mode == "maskAndRec":   
                         pred_box_infra, pred_score_infra, sample_idx = pred_box_infra_list[b], pred_score_infra_list[b], sample_idx_list[b]
                         gaussian_maps = self.gaussian(pred_box_infra, torch.zeros_like(node_features[1].unsqueeze(0)), i, sample_idx)                 
@@ -402,6 +413,11 @@ class Where2comm(nn.Module):
                         node_features = torch.cat((node_features[0].unsqueeze(0), infra_features_mae), dim=0)   # vehicle+infra [2, 64, 100, 252]
                         neighbor_feature = warp_affine_simple(node_features, t_matrix[0, :, :, :], (H, W))  
                         fuse_feature = self.fuse_modules[i](neighbor_feature) 
+                    elif self.mode == "flowPre":
+                        # 运动流 和 路端特征 结合 => 传给 车端
+                        node_features = torch.cat((node_features[0].unsqueeze(0), infra_prefea[i][b].unsqueeze(0)), dim=0)   # vehicle+infra [2, 64, 100, 252]
+                        neighbor_feature = warp_affine_simple(node_features, t_matrix[0, :, :, :], (H, W))    # 通过affine trans  空间对齐不同来源的特征
+                        fuse_feature = self.fuse_modules[i](neighbor_feature)   # [2, 64, 100, 252]  
                                       
                     x_fuse.append(fuse_feature)
                 x_fuse = torch.stack(x_fuse)
@@ -450,5 +466,5 @@ class Where2comm(nn.Module):
                 x_fuse.append(self.fuse_modules(neighbor_feature))
             x_fuse = torch.stack(x_fuse)
         
-        return x_fuse, communication_rates, {}, loss_mae
-
+        return x_fuse, communication_rates, {}, loss_mae, loss_offset
+    

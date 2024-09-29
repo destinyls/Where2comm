@@ -55,8 +55,8 @@ class PointPillar(nn.Module):
         # n, 4 -> n, c
         batch_dict = self.pillar_vfe(batch_dict)
         # n, c -> N, C, H, W
-        batch_dict = self.scatter(batch_dict)  # batch_dict add['spatial_features]
-        batch_dict = self.backbone(batch_dict) # batch_dict add['spatial_features_2d]
+        batch_dict = self.scatter(batch_dict)  # batch_dict add['spatial_features']
+        batch_dict = self.backbone(batch_dict) # batch_dict add['spatial_features_2d']
         # N, C, H', W'. [N, 384, 100, 352]
         spatial_features = batch_dict['spatial_features']
         spatial_features_2d = batch_dict['spatial_features_2d']  # [batch_size, 384,100,252]
@@ -111,6 +111,11 @@ class PointPillarWhere2comm(nn.Module):
         self.dcn = False
         if 'dcn' in args:
             self.dcn = True
+            
+        if args['fusion_args']["para"]["his_flag"]:
+            self.his_flag = True
+        else:
+            self.his_flag = False
 
         self.model_infra = PointPillar(args, args['infra_fix'])
         self.model_vehicle = PointPillar(args, args['vehicle_fix'])
@@ -218,23 +223,31 @@ class PointPillarWhere2comm(nn.Module):
         spatial_features = torch.stack(spatial_features, dim=0)
         spatial_features_2d = torch.stack(spatial_features_2d, dim=0)
         
+        # process history data
+        if self.his_flag:
+            his_spatial_features, his_spatial_features_2d = self.pro_his_data(data_dict['his_data_info'])
+        else:
+            his_spatial_features, his_spatial_features_2d = [], []
+        
         if self.multi_scale: # True
-            fused_feature, communication_rates, result_dict, loss_mae = self.fusion_net(spatial_features,
+            fused_feature, communication_rates, result_dict, loss_mae, loss_offset = self.fusion_net(spatial_features,
                                             psm_single,
                                             record_len,
                                             pairwise_t_matrix, 
                                             dataset, middle_data_dict_list, middle_output_dict_list,
                                             self.model_vehicle.backbone,
-                                            [self.model_vehicle.shrink_conv, self.cls_head, self.reg_head])
+                                            [self.model_vehicle.shrink_conv, self.cls_head, self.reg_head],
+                                            his_spatial_features)
             # downsample feature to reduce memory
             if self.shrink_flag:
                 fused_feature = self.model_vehicle.shrink_conv(fused_feature)
         else:
-            fused_feature, communication_rates, result_dict, loss_mae = self.fusion_net(spatial_features_2d,
+            fused_feature, communication_rates, result_dict, loss_mae, loss_offset = self.fusion_net(spatial_features_2d,
                                             psm_single,
                                             record_len,
                                             pairwise_t_matrix,
-                                            dataset, middle_data_dict_list, middle_output_dict_list)
+                                            dataset, middle_data_dict_list, middle_output_dict_list,
+                                            his_spatial_features_2d)
             
         psm = self.cls_head(fused_feature)
         rm = self.reg_head(fused_feature)
@@ -245,7 +258,46 @@ class PointPillarWhere2comm(nn.Module):
                        'rm_single_v': rm_single_v,
                        'rm_single_i': rm_single_i,
                        'comm_rate': communication_rates,
-                       'loss_mae': loss_mae
+                       'loss_mae': loss_mae,
+                       'loss_offset': loss_offset
                        }
         output_dict.update(result_dict)
         return output_dict
+    
+    
+    def pro_his_data(self, his_data):
+        
+        his_spatial_features = []
+        his_spatial_features_2d = []
+        
+        for data_dict in his_data:
+            data_dict = data_dict['ego']
+            voxel_features = data_dict['processed_lidar']['voxel_features']
+            voxel_coords = data_dict['processed_lidar']['voxel_coords']
+            voxel_num_points = data_dict['processed_lidar']['voxel_num_points']
+            record_len = data_dict['record_len']
+
+            batch_dict_v, batch_dict_i = self.split_data(voxel_features, voxel_coords, voxel_num_points, record_len)
+            psm_single_v, rm_single_v, spatial_features_v, spatial_features_2d_v = self.model_vehicle(batch_dict_v)
+            psm_single_i, rm_single_i, spatial_features_i, spatial_features_2d_i= self.model_infra(batch_dict_i)
+
+            psm_single, spatial_features, spatial_features_2d = [], [], []
+            for i in range(psm_single_v.shape[0]):  # batch_size
+                psm_single.append(psm_single_v[i, :, :, :])
+                psm_single.append(psm_single_i[i, :, :, :])
+            for i in range(spatial_features_v.shape[0]):
+                spatial_features.append(spatial_features_v[i, :, :, :])
+                spatial_features.append(spatial_features_i[i, :, :, :])
+            for i in range(spatial_features_2d_v.shape[0]):
+                spatial_features_2d.append(spatial_features_2d_v[i, :, :, :])
+                spatial_features_2d.append(spatial_features_2d_i[i, :, :, :])
+            psm_single = torch.stack(psm_single, dim=0)
+            spatial_features = torch.stack(spatial_features, dim=0)
+            spatial_features_2d = torch.stack(spatial_features_2d, dim=0)
+        
+            his_spatial_features.append(spatial_features)
+            his_spatial_features_2d.append(spatial_features_2d)
+        
+        return his_spatial_features, his_spatial_features_2d
+    
+    

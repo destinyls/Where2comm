@@ -84,8 +84,6 @@ def main_worker(local_rank, nprocs, opt):
     else:
         if hypes['resume'] is not None:
             model = train_utils.load_model_infra(hypes['resume'], model.module if distributed else model)   # 只加载infra端权重
-            # model = train_utils.load_model_infra_veh(hypes['resume'], model.module if distributed else model)   # 加载infra端、vehicle端权重
-            # model = train_utils.load_model_infra_veh_fus(hypes['resume'], model.module if distributed else model)   # 加载infra端、vehicle端、fuse模块权重
         init_epoch = 0
         # if we train the model from scratch, we need to create a folder
         # to save the model,
@@ -127,6 +125,8 @@ def main_worker(local_rank, nprocs, opt):
             if 'psm' in output_dict.keys():
                 final_loss = criterion(output_dict, batch_data['ego']['label_dict'])
             if len(output_dict) > 2:
+                if 'loss_offset' in output_dict.keys():
+                    loss_offset = output_dict['loss_offset']
                 if 'loss_mae' in output_dict.keys():
                     loss_mae = output_dict['loss_mae']
                 if 'psm_single_v' in output_dict.keys():
@@ -149,6 +149,8 @@ def main_worker(local_rank, nprocs, opt):
                     criterion.add_loss_dict("mae_loss_single", loss_mae)
                 if with_round_loss:
                     final_loss += round_loss_v
+                if loss_offset is not None:
+                    final_loss += loss_offset[0]
 
             if local_rank == 0:
                 batch_time = time.time() - start_batch_time
@@ -163,7 +165,7 @@ def main_worker(local_rank, nprocs, opt):
 
             torch.cuda.empty_cache()
 
-        if epoch % hypes['train_params']['save_freq'] == 0 and local_rank == 0 and epoch > 15:  #  因为epoch数太大   save_freq=5  仅保存25 epoch之后的
+        if epoch % hypes['train_params']['save_freq'] == 0 and local_rank == 0 and epoch > 20:  
             torch.save(model.state_dict(),
                        os.path.join(saved_path,
                                     'net_epoch%d.pth' % (epoch + 1)))

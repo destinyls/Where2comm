@@ -139,8 +139,9 @@ model:
       multi_scale: true
       layer_nums: *layer_nums
       num_filters: *num_filters
-      mae: 
-        enable: False
+      para:  
+        mode:  baseline   #  baseline; onlyVehFea;
+
 
 loss:
   core_method: point_pillar_loss

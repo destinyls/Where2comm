@@ -74,7 +74,6 @@ postprocess:
   max_num: 100 # maximum number of objects in a single frame. use this number to make sure different frames has the same dimension in the same batch
   nms_thresh: 0.15
 
-# model related
 model:
   core_method: point_pillar_where2comm
   
@@ -96,7 +95,7 @@ model:
     point_pillar_scatter:
       num_features: 64
 
-    base_bev_backbone:
+    base_bev_backbone: &base_bev_backbone
       resnet: true
       layer_nums: &layer_nums [3, 4, 5]
       layer_strides: [2, 2, 2]
@@ -140,10 +139,12 @@ model:
       layer_nums: *layer_nums
       num_filters: *num_filters
       para:  
-        mode:  onlyMask   # baseline; onlyVehFea; maskAndRec; onlyMask
-        mask_ratio:  0.8 # 0.5 0.7 0.9 0.95
-
-
+        mode:  flowPre   # baseline; maskAndRec; onlyMask;  onlyVehFea; flowPre
+        mask_ratio:  1 # 0.5 0.7 0.9 0.95
+        his_flag: true
+        before_frame: 3
+        base_bev_backbone: *base_bev_backbone
+      
 
 loss:
   core_method: point_pillar_loss
