@@ -4,7 +4,7 @@ data_dir: "dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure"
 root_dir: "dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure/train.json"
 validate_dir: "dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure/val.json"
 test_dir: "dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure/val.json"
-resume: "opencood/logs/no_mae_logs/dair_where2comm_max_multiscale_resnet_2024_09_04_23_11_03/net_epoch69.pth"
+resume: "opencood/logs/exp/baseline_dair_where2comm_max_multiscale_resnet_2024_09_04_23_11_03/net_epoch69.pth"
 
 noise_setting:
   add_noise: False
@@ -139,9 +139,9 @@ model:
       layer_nums: *layer_nums
       num_filters: *num_filters
       para:  
-        mode:  flowPre   # baseline; maskAndRec; onlyMask;  onlyVehFea; flowPre
+        mode:  correctPosition   # baseline; maskAndRec; onlyMask;  onlyVehFea; flowPre; correctPosition
         mask_ratio:  1 # 0.5 0.7 0.9 0.95
-        his_flag: true
+        his_flag: false
         before_frame: 3
         base_bev_backbone: *base_bev_backbone
       

@@ -11,7 +11,7 @@
           "${workspaceFolder}/opencood/hypes_yaml/dair-v2x/dair_where2comm_max_multiscale_resnet_vehicle.yaml",
         ],
         "env": {
-          "CUDA_VISIBLE_DEVICES": "2"
+          "CUDA_VISIBLE_DEVICES": "1"
         },
         "console": "integratedTerminal",
         "justMyCode": false

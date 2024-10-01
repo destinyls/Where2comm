@@ -21,6 +21,7 @@ from opencood.visualization import simple_vis
 from opencood.models.fuse_modules.gaussian import Gaussian
 from opencood.models.fuse_modules.models_mae import mae_vit_custom_patch1
 from opencood.models.fuse_modules.how2comm_preprocess import How2commPreprocess
+from opencood.models.fuse_modules.GlobalAlign import GlobalAlign
 
 class ScaledDotProductAttention(nn.Module):
     """
@@ -218,6 +219,7 @@ class Where2comm(nn.Module):
             self.num_levels = len(layer_nums)
             self.fuse_modules = nn.ModuleList()
             self.mae_modules = nn.ModuleList()
+            self.globalAlign = nn.ModuleList()
             for idx in range(self.num_levels):
                 if self.agg_mode == 'ATTEN':
                     fuse_network = AttenFusion(num_filters[idx])
@@ -236,6 +238,7 @@ class Where2comm(nn.Module):
 
                 downsample_factor_h, downsample_factor_w, patch_size = self.downsample_factor[min_hw]
                 self.mae_modules.append(mae_vit_custom_patch1(img_size=(downsample_factor_h, downsample_factor_w), patch_size=patch_size, in_chans=HWC[2], norm_pix_loss=False))
+                self.globalAlign.append(GlobalAlign(in_channel=num_filters[idx]))
         else:
             if self.agg_mode == 'ATTEN':
                 self.fuse_modules = AttenFusion(args['agg_operator']['feature_dim'])
@@ -286,7 +289,7 @@ class Where2comm(nn.Module):
         if his_features != []:
             infra_predict_feature, loss_offset = self.how2comm(x, his_features, record_len) 
         else:
-            loss_offset = torch.zeros(1).to(x.device)
+            loss_offset = None
                 
         if self.multi_scale:   # True
             pred_box_infra_list, pred_score_infra_list, sample_idx_list = [], [], []
@@ -306,6 +309,7 @@ class Where2comm(nn.Module):
                     infra_prefea = backbone.resnet(infra_predict_feature)
             
             loss_mae = None
+            loss_align = None
             for i in range(self.num_levels):
                 x = feats[i] if with_resnet else backbone.blocks[i](x)
 
@@ -360,7 +364,7 @@ class Where2comm(nn.Module):
                         mask = self.mae_modules[i].unpatchify(mask.unsqueeze(-1).repeat(1, 1, int(self.mae_modules[i].patch_embed.patch_size[0])**2), hw)                    
                         mask = self.mae_modules[i].patchify(mask)[:, :, 0]
                         
-                        if self.training:   # loss_mae 
+                        if self.training:   # loss_mae 累加
                             if loss_mae is None:
                                 mask[:, :] = 1
                                 loss_mae = self.mae_modules[i].forward_loss(infra_features, pred, mask)
@@ -376,7 +380,7 @@ class Where2comm(nn.Module):
                         infra_features_mae = infra_features_mae.view(1, c, h, w)
 
                         node_features = torch.cat((node_features[0].unsqueeze(0), infra_features_mae), dim=0)   # vehicle+infra [2, 64, 100, 252]
-                        neighbor_feature = warp_affine_simple(node_features, t_matrix[0, :, :, :], (H, W))    # 通过affine trans  空间对齐不同来源的特征
+                        neighbor_feature = warp_affine_simple(node_features, t_matrix[0, :, :, :], (H, W))
                         fuse_feature = self.fuse_modules[i](neighbor_feature) 
                         fuse_feature = torch.cat((fuse_feature.unsqueeze(0), gaussian_maps), dim=0) 
                         fuse_feature = warp_affine_simple(fuse_feature, t_matrix[0, :, :, :], (H, W))
@@ -416,8 +420,23 @@ class Where2comm(nn.Module):
                     elif self.mode == "flowPre":
                         # 运动流 和 路端特征 结合 => 传给 车端
                         node_features = torch.cat((node_features[0].unsqueeze(0), infra_prefea[i][b].unsqueeze(0)), dim=0)   # vehicle+infra [2, 64, 100, 252]
-                        neighbor_feature = warp_affine_simple(node_features, t_matrix[0, :, :, :], (H, W))    # 通过affine trans  空间对齐不同来源的特征
+                        neighbor_feature = warp_affine_simple(node_features, t_matrix[0, :, :, :], (H, W))
                         fuse_feature = self.fuse_modules[i](neighbor_feature)   # [2, 64, 100, 252]  
+                    elif self.mode == "correctPosition":
+                        neighbor_feature = warp_affine_simple(node_features, t_matrix[0, :, :, :], (H, W))
+                        vehicle_fea = node_features[0].unsqueeze(0)
+                        infra_fea = node_features[1].unsqueeze(0)
+                        cor_infra_frea = self.globalAlign[i](infra_fea, vehicle_fea)
+                        
+                        if self.training:   # loss_align 累加
+                            if loss_align is None:
+                                loss_align = self.globalAlign[i].calculate_loss(cor_infra_frea, infra_fea)
+                            else:
+                                loss_align += self.globalAlign[i].calculate_loss(cor_infra_frea, infra_fea)
+                                
+                        fuse_feature = torch.cat((cor_infra_frea, vehicle_fea), dim=0)
+                        fuse_feature = warp_affine_simple(fuse_feature, t_matrix[0, :, :, :], (H, W))
+                        fuse_feature = self.fuse_modules[i](fuse_feature)
                                       
                     x_fuse.append(fuse_feature)
                 x_fuse = torch.stack(x_fuse)
@@ -466,5 +485,5 @@ class Where2comm(nn.Module):
                 x_fuse.append(self.fuse_modules(neighbor_feature))
             x_fuse = torch.stack(x_fuse)
         
-        return x_fuse, communication_rates, {}, loss_mae, loss_offset
+        return x_fuse, communication_rates, {}, loss_mae, loss_offset, loss_align
     

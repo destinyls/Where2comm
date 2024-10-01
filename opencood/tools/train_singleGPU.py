@@ -125,10 +125,10 @@ def main_worker(local_rank, nprocs, opt):
             if 'psm' in output_dict.keys():
                 final_loss = criterion(output_dict, batch_data['ego']['label_dict'])
             if len(output_dict) > 2:
-                if 'loss_offset' in output_dict.keys():
-                    loss_offset = output_dict['loss_offset']
-                if 'loss_mae' in output_dict.keys():
-                    loss_mae = output_dict['loss_mae']
+                loss_offset = output_dict['loss_offset']
+                loss_align = output_dict['loss_align']
+                loss_mae = output_dict['loss_mae']
+
                 if 'psm_single_v' in output_dict.keys():
                     single_loss_v = criterion(output_dict, batch_data['ego']['label_dict_single_v'], prefix='_single_v') # 只用车端label算
                 if 'psm_single_i' in output_dict.keys():
@@ -144,13 +144,14 @@ def main_worker(local_rank, nprocs, opt):
             
             if len(output_dict) > 2:
                 final_loss += single_loss_v + single_loss_i 
-                if loss_mae is not None:
-                    final_loss += loss_mae
-                    criterion.add_loss_dict("mae_loss_single", loss_mae)
                 if with_round_loss:
                     final_loss += round_loss_v
+                if loss_mae is not None:
+                    final_loss += loss_mae
                 if loss_offset is not None:
                     final_loss += loss_offset[0]
+                if loss_align is not None:
+                    final_loss += loss_align
 
             if local_rank == 0:
                 batch_time = time.time() - start_batch_time

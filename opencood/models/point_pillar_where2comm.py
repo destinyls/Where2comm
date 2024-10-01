@@ -230,7 +230,7 @@ class PointPillarWhere2comm(nn.Module):
             his_spatial_features, his_spatial_features_2d = [], []
         
         if self.multi_scale: # True
-            fused_feature, communication_rates, result_dict, loss_mae, loss_offset = self.fusion_net(spatial_features,
+            fused_feature, communication_rates, result_dict, loss_mae, loss_offset, loss_align = self.fusion_net(spatial_features,
                                             psm_single,
                                             record_len,
                                             pairwise_t_matrix, 
@@ -242,7 +242,7 @@ class PointPillarWhere2comm(nn.Module):
             if self.shrink_flag:
                 fused_feature = self.model_vehicle.shrink_conv(fused_feature)
         else:
-            fused_feature, communication_rates, result_dict, loss_mae, loss_offset = self.fusion_net(spatial_features_2d,
+            fused_feature, communication_rates, result_dict, loss_mae, loss_offset, loss_align = self.fusion_net(spatial_features_2d,
                                             psm_single,
                                             record_len,
                                             pairwise_t_matrix,
@@ -259,7 +259,8 @@ class PointPillarWhere2comm(nn.Module):
                        'rm_single_i': rm_single_i,
                        'comm_rate': communication_rates,
                        'loss_mae': loss_mae,
-                       'loss_offset': loss_offset
+                       'loss_offset': loss_offset,
+                       'loss_align': loss_align
                        }
         output_dict.update(result_dict)
         return output_dict
