@@ -131,7 +131,7 @@ def load_model_infra(saved_path, model):
     model.load_state_dict(state_dict, strict=False)
     return model
 
-def load_model_infra_veh(saved_path, model):
+def load_model_infra_veh_crhead(saved_path, model):
     epoch = saved_path.split('epoch')[-1].split('.')[0]
     print('resuming by loading epoch %s' % epoch)
     device = torch.device("cpu")
@@ -139,7 +139,7 @@ def load_model_infra_veh(saved_path, model):
     state_dict = {}
     # convert data_parallal to model
     for k in state_dict_:
-        if 'model_infra' not in k and 'model_vehicle' not in k:   # 加载infra端和vehicle端权重
+        if 'model_infra' not in k and 'model_vehicle' not in k and 'cls_head' not in k and 'reg_head' not in k:   # 加载infra端和vehicle端和head权重
             continue
         if k.startswith('module') and not k.startswith('module_list'):
             state_dict[k[7:]] = state_dict_[k]

@@ -83,7 +83,8 @@ def main_worker(local_rank, nprocs, opt):
         scheduler = train_utils.setup_lr_schedular(hypes, optimizer, init_epoch=init_epoch)
     else:
         if hypes['resume'] is not None:
-            model = train_utils.load_model_infra(hypes['resume'], model.module if distributed else model)   # 只加载infra端权重
+            # model = train_utils.load_model_infra(hypes['resume'], model.module if distributed else model)   # 只加载infra端权重
+            model = train_utils.load_model_infra_veh_crhead(hypes['resume'], model.module if distributed else model)  
         init_epoch = 0
         # if we train the model from scratch, we need to create a folder
         # to save the model,
@@ -102,7 +103,11 @@ def main_worker(local_rank, nprocs, opt):
     for epoch in range(init_epoch, max(epoches, init_epoch)):
         for param_group in optimizer.param_groups:
             print('learning rate %f' % param_group["lr"])
-        for i, batch_data in enumerate(train_loader):
+        for i, batch_data_tiemstamp in enumerate(train_loader):
+            
+            batch_data = batch_data_tiemstamp[0]
+            timestamp = batch_data_tiemstamp[1]
+            
             start_batch_time = time.time()
             if batch_data is None:
                 continue
@@ -118,7 +123,7 @@ def main_worker(local_rank, nprocs, opt):
             # becomes a list, which containing all data from other cavs
             # as well
             batch_data['ego']['epoch'] = epoch
-            output_dict = model(batch_data['ego'], opencood_train_dataset)
+            output_dict = model(batch_data['ego'], opencood_train_dataset, timestamp)
             # first argument is always your output dictionary,
             # second argument is always your label dictionary.
             final_loss, single_loss_i, single_loss_v = 0.0, 0.0, 0.0
@@ -166,7 +171,7 @@ def main_worker(local_rank, nprocs, opt):
 
             torch.cuda.empty_cache()
 
-        if epoch % hypes['train_params']['save_freq'] == 0 and local_rank == 0 and epoch > 20:  
+        if epoch % hypes['train_params']['save_freq'] == 0 and local_rank == 0 and epoch > 5: # 5 20
             torch.save(model.state_dict(),
                        os.path.join(saved_path,
                                     'net_epoch%d.pth' % (epoch + 1)))
@@ -174,7 +179,7 @@ def main_worker(local_rank, nprocs, opt):
 
     print('Training Finished, checkpoints saved to %s' % saved_path)
     torch.cuda.empty_cache()
-    run_test = True
+    run_test = False
     if run_test:
         cmd = f"python /home/yanglei/code/Where2comm/opencood/tools/inference_.py --model_dir {saved_path} --fusion_method intermediate_with_comm"
         print(f"Running command: {cmd}")

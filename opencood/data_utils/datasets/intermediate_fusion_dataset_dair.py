@@ -27,6 +27,7 @@ import opencood.utils.pcd_utils as pcd_utils
 from opencood.utils.transformation_utils import veh_side_rot_and_trans_to_trasnformation_matrix
 from opencood.utils.transformation_utils import inf_side_rot_and_trans_to_trasnformation_matrix
 import copy
+import random
 
 def load_json(path):
     with open(path, mode="r") as f:
@@ -89,9 +90,9 @@ class IntermediateFusionDatasetDAIR(Dataset):
             split_dir = params['validate_dir']
 
         self.root_dir = params['data_dir']
-        self.split_info = load_json(split_dir)  # 划分的 训练集 或 测试集
-        # co_datainfo = load_json(os.path.join(self.root_dir, 'cooperative/data_info.json')) # 无delay
-        co_datainfo = load_json(os.path.join(self.root_dir, 'cooperative/data_info_delay_1000ms.json'))
+        self.split_info = load_json(split_dir)  # split train/validate set
+        co_datainfo = load_json(os.path.join(self.root_dir, 'cooperative/data_info.json')) # 无delay
+        # co_datainfo = load_json(os.path.join(self.root_dir, 'cooperative/data_info_delay_500ms.json')) # delay
         self.co_data = OrderedDict()
         self.frame_id_list = []
         for frame_info in co_datainfo:
@@ -101,6 +102,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
         self.frame_id_list = sorted(self.frame_id_list)
         
     def retrieve_multi_data(self, idx, select_num):
+        
         if select_num == 0:  # 不需要his
             base_data_dict, cur_timestamp = self.retrieve_base_data(idx) 
             return [base_data_dict], [cur_timestamp]
@@ -109,11 +111,13 @@ class IntermediateFusionDatasetDAIR(Dataset):
         timestamp_list = []
         for j in range(idx,idx-select_num-1,-1):
             if j == idx:
-                base_data_dict, cur_timestamp = self.retrieve_base_data(j) # idx
-            else:
+                base_data_dict, cur_timestamp = self.retrieve_base_data(j) # cur idx
+                cur_idx = self.frame_id_list.index(cur_timestamp)
+            else: # his
                 index = self.frame_id_list.index(cur_timestamp)
                 if index > 0:
                     cur_timestamp = self.frame_id_list[index - 1] # 前一帧
+                    
                     base_data_dict = self.retrieve_base_data_before(cur_timestamp)
                 else:
                     # 没有前一帧 就重复有的 最靠前的那帧
@@ -122,6 +126,21 @@ class IntermediateFusionDatasetDAIR(Dataset):
                          
             timestamp_list.append(cur_timestamp)
             select_dict.append(base_data_dict)
+        
+        # future_frame
+        k =  0   # random.choice([1, 2])  
+        fur_idx = cur_idx + k
+
+        if fur_idx < len(self.frame_id_list):
+            fur_timestamp = self.frame_id_list[fur_idx]
+            base_data_dict = self.retrieve_base_data_before(fur_timestamp)
+        else:
+            fur_timestamp = self.frame_id_list[-1]
+            base_data_dict = self.retrieve_base_data_before(fur_timestamp)  
+
+        timestamp_list.append(fur_timestamp)
+        select_dict.append(base_data_dict)
+                
         return select_dict,timestamp_list
     
     def retrieve_base_data(self, idx):
@@ -152,7 +171,6 @@ class IntermediateFusionDatasetDAIR(Dataset):
  
         data[0]['params'] = OrderedDict()
         data[0]['params']['vehicles'] = load_json(os.path.join(self.root_dir, frame_info['cooperative_label_path']))
-        # data[0]['params']['vehicles'] = load_json(os.path.join(self.root_dir, frame_info['cooperative_label_path'].replace('label_world','label_world_backup')))
 
         lidar_to_novatel_json_file = load_json(os.path.join(self.root_dir,'vehicle-side/calib/lidar_to_novatel/'+str(veh_frame_id)+'.json'))
         novatel_to_world_json_file = load_json(os.path.join(self.root_dir,'vehicle-side/calib/novatel_to_world/'+str(veh_frame_id)+'.json'))
@@ -185,6 +203,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
     
     def retrieve_base_data_before(self, cur_timestamp):
         """
+        提取 cur_timestamp 时间戳对应的数据
         Given the index, return the corresponding data.
 
         Parameters
@@ -415,7 +434,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
         
         select_dict,timestamp_list = self.retrieve_multi_data(idx,self.before_frame)
 
-        cur_his_data = []
+        cur_his_fur_data = []
                 
         for i in range(len(select_dict)):
             timestamp = timestamp_list[i]
@@ -615,27 +634,33 @@ class IntermediateFusionDatasetDAIR(Dataset):
                         projected_lidar_current_stack[1]})
 
             processed_data_dict['ego'].update({'sample_idx': veh_frame_id, 'cav_id_list': cav_id_list})
-            cur_his_data.append((timestamp,processed_data_dict))
+            cur_his_fur_data.append((timestamp,processed_data_dict))
         
-        return cur_his_data
+        return cur_his_fur_data
     
     def collate_batch_train(self, batch):
         
+        timestamps = [[entry[0] for entry in sublist] for sublist in batch]
+        
         cur_batch = [b[0] for b in batch]
+        cur_output_dict = self.collate_batch_train_single_timestamp(cur_batch)
+        
+        fur_batch = [b[-1] for b in batch]
+        fur_output_dict = [self.collate_batch_train_single_timestamp(fur_batch)]
+        
         his_batch = []
         his_output_dict = []
-        for i in range(1,len(batch[0])):
+        for i in range(1,len(batch[0])-1):
             his_batch.append([b[i] for b in batch])
-        
-        cur_output_dict = self.collate_batch_train_single_timestamp(cur_batch)
         
         for his_data in his_batch:
             his_output_dict.append(self.collate_batch_train_single_timestamp(his_data))
         
         if self.his_flag:   
             cur_output_dict['ego'].update({'his_data_info': his_output_dict})
+            cur_output_dict['ego'].update({'fur_data_info': fur_output_dict})
 
-        return cur_output_dict
+        return [cur_output_dict, timestamps]
 
     def collate_batch_train_single_timestamp(self, batch):
         # Intermediate fusion is different the other two

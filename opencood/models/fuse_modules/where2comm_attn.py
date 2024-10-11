@@ -75,7 +75,6 @@ class MaxFusion(nn.Module):
     def forward(self, x):
         return torch.max(x, dim=0)[0]
 
-
 class EncodeLayer(nn.Module):
     def __init__(self, channels, n_head=8, dropout=0):
         super(EncodeLayer, self).__init__()
@@ -256,7 +255,7 @@ class Where2comm(nn.Module):
         split_x = torch.tensor_split(x, cum_sum_len[:-1].cpu())
         return split_x
 
-    def forward(self, x, rm, record_len, pairwise_t_matrix, dataset, data_dict, output_dict, backbone=None, heads=None, his_features=None):
+    def forward(self, x, rm, record_len, pairwise_t_matrix, dataset, data_dict, output_dict, backbone=None, heads=None, his_features=None, fur_features=None, timestamp=None):
         """
         Fusion forwarding.
         
@@ -286,11 +285,11 @@ class Where2comm(nn.Module):
         pairwise_t_matrix[...,0,2] = pairwise_t_matrix[...,0,2] / (self.downsample_rate * self.discrete_ratio * W) * 2
         pairwise_t_matrix[...,1,2] = pairwise_t_matrix[...,1,2] / (self.downsample_rate * self.discrete_ratio * H) * 2
 
-        if his_features != []:
-            infra_predict_feature, loss_offset = self.how2comm(x, his_features, record_len) 
+        if his_features != [] and fur_features != []: # flow_pre
+            infra_predict_feature, loss_offset = self.how2comm(x, his_features, fur_features, record_len, timestamp) 
         else:
             loss_offset = None
-                
+              
         if self.multi_scale:   # True
             pred_box_infra_list, pred_score_infra_list, sample_idx_list = [], [], []
             
@@ -305,7 +304,7 @@ class Where2comm(nn.Module):
             with_resnet = True if hasattr(backbone, 'resnet') else False
             if with_resnet:
                 feats = backbone.resnet(x)
-                if his_features != []:
+                if his_features != [] and fur_features != []:
                     infra_prefea = backbone.resnet(infra_predict_feature)
             
             loss_mae = None
@@ -418,11 +417,12 @@ class Where2comm(nn.Module):
                         neighbor_feature = warp_affine_simple(node_features, t_matrix[0, :, :, :], (H, W))  
                         fuse_feature = self.fuse_modules[i](neighbor_feature) 
                     elif self.mode == "flowPre":
-                        # 运动流 和 路端特征 结合 => 传给 车端
-                        node_features = torch.cat((node_features[0].unsqueeze(0), infra_prefea[i][b].unsqueeze(0)), dim=0)   # vehicle+infra [2, 64, 100, 252]
+                        if not self.training : # inference predict_flow
+                            node_features = torch.cat((node_features[0].unsqueeze(0), infra_prefea[i][b].unsqueeze(0)), dim=0)   # vehicle+infra [2, 64, 100, 252]
+                        # 训练的时候  融合 不用预测的
                         neighbor_feature = warp_affine_simple(node_features, t_matrix[0, :, :, :], (H, W))
                         fuse_feature = self.fuse_modules[i](neighbor_feature)   # [2, 64, 100, 252]  
-                    elif self.mode == "correctPosition":
+                    elif self.mode == "correctPosition":   # 暂时不考虑这个
                         neighbor_feature = warp_affine_simple(node_features, t_matrix[0, :, :, :], (H, W))
                         vehicle_fea = node_features[0].unsqueeze(0)
                         infra_fea = node_features[1].unsqueeze(0)
@@ -446,7 +446,6 @@ class Where2comm(nn.Module):
                     ups.append(backbone.deblocks[i](x_fuse))
                 else:
                     ups.append(x_fuse)
-
                 
             if len(ups) > 1:
                 x_fuse = torch.cat(ups, dim=1)

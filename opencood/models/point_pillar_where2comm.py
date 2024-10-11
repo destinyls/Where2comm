@@ -124,12 +124,12 @@ class PointPillarWhere2comm(nn.Module):
         self.cls_head = nn.Conv2d(128 * 2, args['anchor_number'], kernel_size=1)
         self.reg_head = nn.Conv2d(128 * 2, 7 * args['anchor_number'], kernel_size=1)
 
-        if args['fusion_fix']:
-            self.fusion_fix()
+        if args['head_fix']:
+            self.head_fix()
             
-    def fusion_fix(self):    
-        for p in self.fusion_net.parameters():
-            p.requires_grad = False
+    def head_fix(self):    
+        # for p in self.fusion_net.parameters():
+        #     p.requires_grad = False
         for p in self.cls_head.parameters():
             p.requires_grad = False
         for p in self.reg_head.parameters():
@@ -168,7 +168,7 @@ class PointPillarWhere2comm(nn.Module):
                         'record_len': record_len}
         return batch_dict_v, batch_dict_i
 
-    def forward(self, data_dict, dataset):
+    def forward(self, data_dict, dataset, timestamp):
         voxel_features = data_dict['processed_lidar']['voxel_features']
         voxel_coords = data_dict['processed_lidar']['voxel_coords']
         voxel_num_points = data_dict['processed_lidar']['voxel_num_points']
@@ -182,8 +182,8 @@ class PointPillarWhere2comm(nn.Module):
             origin_lidar_i_infra = data_dict['origin_lidar_i_infra']
 
         batch_dict_v, batch_dict_i = self.split_data(voxel_features, voxel_coords, voxel_num_points, record_len)
-        psm_single_v, rm_single_v, spatial_features_v, spatial_features_2d_v = self.model_vehicle(batch_dict_v)
-        psm_single_i, rm_single_i, spatial_features_i, spatial_features_2d_i= self.model_infra(batch_dict_i)
+        psm_single_v, rm_single_v, spatial_features_v, spatial_features_2d_v = self.model_vehicle(batch_dict_v)  
+        psm_single_i, rm_single_i, spatial_features_i, spatial_features_2d_i= self.model_infra(batch_dict_i)  
         
         middle_output_dict_list, middle_data_dict_list = [], []
         batch_size = voxel_coords[:, 0].max().int().item() + 1
@@ -226,8 +226,10 @@ class PointPillarWhere2comm(nn.Module):
         # process history data
         if self.his_flag:
             his_spatial_features, his_spatial_features_2d = self.pro_his_data(data_dict['his_data_info'])
+            fur_spatial_features, fur_spatial_features_2d = self.pro_his_data(data_dict['fur_data_info'])
         else:
             his_spatial_features, his_spatial_features_2d = [], []
+            fur_spatial_features, fur_spatial_features_2d = [], []
         
         if self.multi_scale: # True
             fused_feature, communication_rates, result_dict, loss_mae, loss_offset, loss_align = self.fusion_net(spatial_features,
@@ -237,7 +239,7 @@ class PointPillarWhere2comm(nn.Module):
                                             dataset, middle_data_dict_list, middle_output_dict_list,
                                             self.model_vehicle.backbone,
                                             [self.model_vehicle.shrink_conv, self.cls_head, self.reg_head],
-                                            his_spatial_features)
+                                            his_spatial_features, fur_spatial_features, timestamp)
             # downsample feature to reduce memory
             if self.shrink_flag:
                 fused_feature = self.model_vehicle.shrink_conv(fused_feature)
@@ -247,10 +249,10 @@ class PointPillarWhere2comm(nn.Module):
                                             record_len,
                                             pairwise_t_matrix,
                                             dataset, middle_data_dict_list, middle_output_dict_list,
-                                            his_spatial_features_2d)
+                                            his_spatial_features_2d, fur_spatial_features_2d, timestamp)
             
-        psm = self.cls_head(fused_feature)
-        rm = self.reg_head(fused_feature)
+        psm = self.cls_head(fused_feature)   
+        rm = self.reg_head(fused_feature)   
         output_dict = {'psm': psm,
                        'rm': rm,
                        'psm_single_v': psm_single_v,
@@ -264,7 +266,6 @@ class PointPillarWhere2comm(nn.Module):
                        }
         output_dict.update(result_dict)
         return output_dict
-    
     
     def pro_his_data(self, his_data):
         

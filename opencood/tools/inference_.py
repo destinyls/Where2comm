@@ -93,8 +93,12 @@ def evaluation(model, data_loader, opt, opencood_dataset, device, test_inference
     evaluator = Evaluator(["car"])
     total_comm_rates = []
 
-    for i, batch_data in tqdm(enumerate(data_loader)):
+    for i, batch_data_tiemstamp in tqdm(enumerate(data_loader)):
         with torch.no_grad():
+            
+            batch_data = batch_data_tiemstamp[0]
+            timestamp = batch_data_tiemstamp[1]
+            
             batch_data = train_utils.to_device(batch_data, device)
             frame_id = int(batch_data["ego"]["sample_idx"])
             if opt.fusion_method == 'late':
@@ -122,7 +126,7 @@ def evaluation(model, data_loader, opt, opencood_dataset, device, test_inference
                 pred_box_tensor, pred_score, gt_box_tensor, comm_rates = \
                     inference_utils.inference_intermediate_fusion_withcomm(batch_data,
                                                                   model,
-                                                                  opencood_dataset)
+                                                                  opencood_dataset, timestamp)
                 total_comm_rates.append(comm_rates)
             else:
                 raise NotImplementedError('Only early, late and intermediate, no, intermediate_with_comm'
@@ -194,7 +198,7 @@ def evaluation(model, data_loader, opt, opencood_dataset, device, test_inference
     else:
         comm_rates = 0
     ap_30, ap_50, ap_70 = eval_utils.eval_final_results(result_stat, opt.model_dir)
-    with open(os.path.join(opt.model_dir, agent_staus + '_result_delay1000ms.txt'), 'a+') as f:
+    with open(os.path.join(opt.model_dir, agent_staus + '_result_delay500ms_before2.txt'), 'a+') as f:
     # with open(os.path.join(opt.model_dir, agent_staus + 'result.txt'), 'a+') as f:
         msg = 'Epoch: {} | AP @0.3: {:.04f} | AP @0.5: {:.04f} | AP @0.7: {:.04f}\n'.format(epoch_id, ap_30, ap_50, ap_70)
         if opt.comm_thre is not None:

@@ -8,7 +8,7 @@
         "program": "${workspaceFolder}/opencood/tools/train_singleGPU.py",
         "args": [
           "--hypes_yaml",
-          "${workspaceFolder}/opencood/hypes_yaml/dair-v2x/dair_where2comm_max_multiscale_resnet_vehicle.yaml",
+          "${workspaceFolder}/opencood/hypes_yaml/dair-v2x/dair_where2comm_max_multiscale_resnet_vehicle2.yaml",
         ],
         "env": {
           "CUDA_VISIBLE_DEVICES": "1"
@@ -24,12 +24,12 @@
         "program": "${workspaceFolder}/opencood/tools/inference_.py",
         "args": [
           "--model_dir",
-          "${workspaceFolder}/opencood/logs/no_mae_logs/dair_where2comm_max_multiscale_resnet_2024_09_04_23_11_03",
+          "${workspaceFolder}/opencood/logs/exp/flowPre_dair_where2comm_max_multiscale_resnet_2024_09_29_22_29_39",
           "--fusion_method",
           "intermediate_with_comm"
         ],
         "env": {
-          "CUDA_VISIBLE_DEVICES": "1"
+          "CUDA_VISIBLE_DEVICES": "3"
         },
         "console": "integratedTerminal",
         "justMyCode": false

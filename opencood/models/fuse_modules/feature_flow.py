@@ -276,34 +276,44 @@ class FlowGenerator(nn.Module):
 
         return warped_feats
 
-    def forward(self, feat_list): 
+    def forward(self, feat_list, delta_t): 
+        
         total_loss = torch.zeros(1).to(feat_list[0][0].device)
         final_list = []
         for bs in range(len(feat_list)): 
-            time_list = feat_list[bs]
-            time_list.reverse()  # timestamp eg. eg. his[015548  015547 015546]  cur 015550    
-            his_frames = time_list[0].shape[1] // self.channel
-            his_list = [time_list[0][:, i*self.channel:(i+1)*self.channel, :, :] for i in range(his_frames)]
-            his_list.reverse() 
-            time_list[0] = torch.cat(his_list, dim=1) 
-            fusion_feature = torch.cat(time_list, dim=1) # concatenate in channel    015546 015547 015548 015550
+            time_list = feat_list[bs] # timestamp cur 015550 his[015548 015547 015546]  fut 015560
+            cur_timestamp = time_list[0]
+            his_timestamps = time_list[1] 
+            fut_timestamp = time_list[2]
+
+            new_time_list = [his_timestamps] + [cur_timestamp] + [fut_timestamp] # his[015548 015547 015546] cur 015550 fut 015560
+              
+            his_frames = his_timestamps.shape[1] // self.channel
+            his_list = [his_timestamps[:, i*self.channel:(i+1)*self.channel, :, :] for i in range(his_frames)]
+            his_list.reverse()  
+            new_time_list[0] = torch.cat(his_list, dim=1) # his[015546 015547 015548]
+            
+            fusion_feature = torch.cat(new_time_list, dim=1) # concatenate in channel    015546 015547 015548 015550 015560
+
             colla_feat = fusion_feature[1].unsqueeze(0)  # infra_feature  
             
             feat = colla_feat[:, 0*self.channel:(0+2)*self.channel, :, :]
             colla_fusion = self.backbone(feat) 
             
             if his_frames > 1:
-                for j in range(2, his_frames):
+                for j in range(2, his_frames+1):
                     current_feat = colla_feat[:, j*self.channel:(j+1)*self.channel, :, :] 
                     combined_feat = torch.cat((colla_fusion, current_feat), dim=1) 
-                    colla_fusion = self.backbone(combined_feat)
+                    colla_fusion = self.backbone(combined_feat)   # colla_fusion  用到了 his and cur frame
             
-            feat_source = colla_feat[:, -self.channel*2:-self.channel, :, :]  # his_F^t_j  [015548]
-            feat_target = colla_feat[:, -self.channel:, :, :] # F^t_j  015550
+            feat_source = colla_feat[:, -self.channel*2:-self.channel, :, :]  # cur 015550
+            feat_target = colla_feat[:, -self.channel:, :, :] # fut  015560
 
-            offset, scale = self.pre_encoder(colla_fusion)  # feature flow, scale matrix
-
-            feat_estimate_target = self.flow_warp_feats(feat_source, offset) 
+            # offset, scale = self.pre_encoder(colla_fusion)  # 估计 offset scale
+            # feat_estimate_target = self.flow_warp_feats(feat_source, offset) 
+            
+            velocity, scale = self.pre_encoder(colla_fusion) 
+            feat_estimate_target = self.flow_warp_feats(feat_source, velocity * delta_t[bs])      
             feat_estimate_target = feat_estimate_target * scale   # Z^t_j predicted collaborator feature
 
             final_list.append(feat_estimate_target) 
