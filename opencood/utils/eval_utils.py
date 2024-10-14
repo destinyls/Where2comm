@@ -159,10 +159,12 @@ def eval_final_results(result_stat, save_path, noise_level=None):
                       'mpre_70': mpre_70,
                       'mrec_70': mrec_70,
                       })
+    '''
     if noise_level is None:
         yaml_utils.save_yaml(dump_dict, os.path.join(save_path, 'eval.yaml'))
     else:
         yaml_utils.save_yaml(dump_dict, os.path.join(save_path, f'eval_{noise_level}.yaml'))
+    '''
 
     print('The Average Precision at IOU 0.3 is %.2f, '
           'The Average Precision at IOU 0.5 is %.2f, '

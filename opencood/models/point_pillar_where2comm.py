@@ -97,6 +97,12 @@ class PointPillar(nn.Module):
             p.requires_grad = False
         for p in self.reg_head.parameters():
             p.requires_grad = False
+        
+        # fix running_mean and running_var 
+        for module in self.modules():
+            if isinstance(module, (torch.nn.BatchNorm1d, torch.nn.BatchNorm2d, torch.nn.BatchNorm3d)):
+                module.eval() 
+                module.track_running_stats = False
 
 class PointPillarWhere2comm(nn.Module):
     def __init__(self, args):
@@ -168,7 +174,7 @@ class PointPillarWhere2comm(nn.Module):
                         'record_len': record_len}
         return batch_dict_v, batch_dict_i
 
-    def forward(self, data_dict, dataset, timestamp):
+    def forward(self, data_dict, dataset, time):
         voxel_features = data_dict['processed_lidar']['voxel_features']
         voxel_coords = data_dict['processed_lidar']['voxel_coords']
         voxel_num_points = data_dict['processed_lidar']['voxel_num_points']
@@ -239,7 +245,7 @@ class PointPillarWhere2comm(nn.Module):
                                             dataset, middle_data_dict_list, middle_output_dict_list,
                                             self.model_vehicle.backbone,
                                             [self.model_vehicle.shrink_conv, self.cls_head, self.reg_head],
-                                            his_spatial_features, fur_spatial_features, timestamp)
+                                            his_spatial_features, fur_spatial_features, time)
             # downsample feature to reduce memory
             if self.shrink_flag:
                 fused_feature = self.model_vehicle.shrink_conv(fused_feature)
@@ -249,7 +255,7 @@ class PointPillarWhere2comm(nn.Module):
                                             record_len,
                                             pairwise_t_matrix,
                                             dataset, middle_data_dict_list, middle_output_dict_list,
-                                            his_spatial_features_2d, fur_spatial_features_2d, timestamp)
+                                            his_spatial_features_2d, fur_spatial_features_2d, time)
             
         psm = self.cls_head(fused_feature)   
         rm = self.reg_head(fused_feature)   

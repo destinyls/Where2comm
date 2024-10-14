@@ -28,7 +28,17 @@ from opencood.utils.transformation_utils import veh_side_rot_and_trans_to_trasnf
 from opencood.utils.transformation_utils import inf_side_rot_and_trans_to_trasnformation_matrix
 import copy
 import random
+import re
 
+def extract_ms_and_divide(filename):
+    match = re.search(r'_(\d+)ms\.json$', filename)
+    if match:
+        ms_value = int(match.group(1)) 
+        result = ms_value / 100
+        return result
+    else:
+        raise ValueError("Filename format is incorrect.")
+    
 def load_json(path):
     with open(path, mode="r") as f:
         data = json.load(f)
@@ -74,9 +84,11 @@ class IntermediateFusionDatasetDAIR(Dataset):
         if params["model"]["args"]["fusion_args"]["para"]["his_flag"]:  # True
             self.his_flag = True
             self.before_frame = params["model"]["args"]["fusion_args"]["para"]['before_frame']
+            self.train_flow  = params["model"]["args"]["fusion_args"]["para"]['flow_train']
         else:
             self.his_flag = False
             self.before_frame = 0
+            self.train_flow = False
             
         self.pre_processor = build_preprocessor(params['preprocess'],
                                                 train)
@@ -91,8 +103,9 @@ class IntermediateFusionDatasetDAIR(Dataset):
 
         self.root_dir = params['data_dir']
         self.split_info = load_json(split_dir)  # split train/validate set
-        co_datainfo = load_json(os.path.join(self.root_dir, 'cooperative/data_info.json')) # 无delay
-        # co_datainfo = load_json(os.path.join(self.root_dir, 'cooperative/data_info_delay_500ms.json')) # delay
+        path_name = 'cooperative/data_info_delay_200ms.json'
+        co_datainfo = load_json(os.path.join(self.root_dir, path_name))
+        
         self.co_data = OrderedDict()
         self.frame_id_list = []
         for frame_info in co_datainfo:
@@ -100,6 +113,9 @@ class IntermediateFusionDatasetDAIR(Dataset):
             self.co_data[veh_frame_id] = frame_info
             self.frame_id_list.append(veh_frame_id)
         self.frame_id_list = sorted(self.frame_id_list)
+        
+        self.t_cur_fut = extract_ms_and_divide(path_name)
+        self.t_his_cur = self.before_frame
         
     def retrieve_multi_data(self, idx, select_num):
         
@@ -127,9 +143,15 @@ class IntermediateFusionDatasetDAIR(Dataset):
             timestamp_list.append(cur_timestamp)
             select_dict.append(base_data_dict)
         
-        # future_frame
-        k =  0   # random.choice([1, 2])  
-        fur_idx = cur_idx + k
+        if self.train_flow: 
+            # k = random.choice([1, 2]) 
+            # k = random.choice([1, 2, 3, 4, 5, 8, 10])
+            k = random.randint(1, 10)
+            fur_idx = cur_idx + k
+            self.t_cur_fut = k
+        else: # 推理时  无须加载未来帧
+            k = 0
+            fur_idx = cur_idx + k                 
 
         if fur_idx < len(self.frame_id_list):
             fur_timestamp = self.frame_id_list[fur_idx]
@@ -140,8 +162,10 @@ class IntermediateFusionDatasetDAIR(Dataset):
 
         timestamp_list.append(fur_timestamp)
         select_dict.append(base_data_dict)
-                
-        return select_dict,timestamp_list
+        
+        times = [self.t_his_cur, self.t_cur_fut]
+        
+        return select_dict,timestamp_list,times
     
     def retrieve_base_data(self, idx):
         """
@@ -432,7 +456,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
 
     def __getitem__(self, idx):
         
-        select_dict,timestamp_list = self.retrieve_multi_data(idx,self.before_frame)
+        select_dict,timestamp_list, times = self.retrieve_multi_data(idx,self.before_frame)
 
         cur_his_fur_data = []
                 
@@ -636,22 +660,21 @@ class IntermediateFusionDatasetDAIR(Dataset):
             processed_data_dict['ego'].update({'sample_idx': veh_frame_id, 'cav_id_list': cav_id_list})
             cur_his_fur_data.append((timestamp,processed_data_dict))
         
-        return cur_his_fur_data
+        return cur_his_fur_data, times
     
     def collate_batch_train(self, batch):
-        
-        timestamps = [[entry[0] for entry in sublist] for sublist in batch]
-        
-        cur_batch = [b[0] for b in batch]
+    
+        cur_batch = [b[0][0] for b in batch]
+        times = [b[1] for b in batch]
         cur_output_dict = self.collate_batch_train_single_timestamp(cur_batch)
         
-        fur_batch = [b[-1] for b in batch]
+        fur_batch = [b[0][-1] for b in batch]
         fur_output_dict = [self.collate_batch_train_single_timestamp(fur_batch)]
         
         his_batch = []
         his_output_dict = []
-        for i in range(1,len(batch[0])-1):
-            his_batch.append([b[i] for b in batch])
+        for i in range(1,len(batch[0][0])-1):
+            his_batch.append([b[0][i] for b in batch])
         
         for his_data in his_batch:
             his_output_dict.append(self.collate_batch_train_single_timestamp(his_data))
@@ -660,7 +683,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
             cur_output_dict['ego'].update({'his_data_info': his_output_dict})
             cur_output_dict['ego'].update({'fur_data_info': fur_output_dict})
 
-        return [cur_output_dict, timestamps]
+        return [cur_output_dict, times]
 
     def collate_batch_train_single_timestamp(self, batch):
         # Intermediate fusion is different the other two
@@ -844,20 +867,20 @@ class IntermediateFusionDatasetDAIR(Dataset):
     
     def collate_batch_test(self, batch):
         assert len(batch) <= 1, "Batch size 1 is required during testing!"
-        output_dict = self.collate_batch_train(batch)
+        [output_dict, times] = self.collate_batch_train(batch)
         if output_dict is None:
             return None
         # check if anchor box in the batch
-        if batch[0][0][1]['ego']['anchor_box'] is not None:  # batch[0][0][1]  batch_size,  timestamp, info
+        if batch[0][0][0][1]['ego']['anchor_box'] is not None: 
             output_dict['ego'].update({'anchor_box_infer':
                 torch.from_numpy(np.array(
-                    batch[0][0][1]['ego'][
+                    batch[0][0][0][1]['ego'][
                         'anchor_box']))})
 
         # save the transformation matrix (4, 4) to ego vehicle
         # transformation is only used in post process (no use.)
         # we all predict boxes in ego coord.
-        pairwise_t_matrix = batch[0][0][1]['ego']['pairwise_t_matrix']
+        pairwise_t_matrix = batch[0][0][0][1]['ego']['pairwise_t_matrix']
         transformation_matrix_torch = \
             torch.from_numpy(pairwise_t_matrix[0,0]).float()
         transformation_matrix_torch_10 = \
@@ -873,11 +896,11 @@ class IntermediateFusionDatasetDAIR(Dataset):
                                        transformation_matrix_clean_torch,})
 
         output_dict['ego'].update({
-            "sample_idx": batch[0][0][1]['ego']['sample_idx'],
-            "cav_id_list": batch[0][0][1]['ego']['cav_id_list']
+            "sample_idx": batch[0][0][0][1]['ego']['sample_idx'],
+            "cav_id_list": batch[0][0][0][1]['ego']['cav_id_list']
         })
 
-        return output_dict
+        return [output_dict, times]
 
     def get_pairwise_transformation(self, base_data_dict, max_cav):
         """

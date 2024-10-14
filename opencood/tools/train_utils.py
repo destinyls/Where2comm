@@ -164,40 +164,6 @@ def load_model_infra_veh_crhead(saved_path, model):
 
     model.load_state_dict(state_dict, strict=False)
     return model
-
-def load_model_infra_veh_fus(saved_path, model):
-    epoch = saved_path.split('epoch')[-1].split('.')[0]
-    print('resuming by loading epoch %s' % epoch)
-    device = torch.device("cpu")
-    state_dict_ = torch.load(saved_path, map_location=device)
-    state_dict = {}
-    # convert data_parallal to model
-    for k in state_dict_:
-        if 'model_infra' not in k and 'model_vehicle' not in k and 'fusion_net' not in k:   # 加载infra端、vehicle端、fuse模块权重
-            continue
-        if k.startswith('module') and not k.startswith('module_list'):
-            state_dict[k[7:]] = state_dict_[k]
-        else:
-            state_dict[k] = state_dict_[k]
-    print("state_dict: ", state_dict.keys())
-
-    model_state_dict = model.state_dict()
-    for k in state_dict:
-        if k in model_state_dict:
-            if state_dict[k].shape != model_state_dict[k].shape:
-                print('Skip loading parameter {}, required shape{}, ' \
-                    'loaded shape{}.'.format(
-                    k, model_state_dict[k].shape, state_dict[k].shape))
-                state_dict[k] = model_state_dict[k]
-        else:
-            print('Drop parameter {}.'.format(k))
-    for k in model_state_dict:
-        if not (k in state_dict):
-            print('No param {}.'.format(k))
-            state_dict[k] = model_state_dict[k]
-
-    model.load_state_dict(state_dict, strict=False)
-    return model
     
 def setup_train(hypes, local_rank=0):
     """

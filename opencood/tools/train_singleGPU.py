@@ -103,10 +103,10 @@ def main_worker(local_rank, nprocs, opt):
     for epoch in range(init_epoch, max(epoches, init_epoch)):
         for param_group in optimizer.param_groups:
             print('learning rate %f' % param_group["lr"])
-        for i, batch_data_tiemstamp in enumerate(train_loader):
+        for i, batch_data_time in enumerate(train_loader):
             
-            batch_data = batch_data_tiemstamp[0]
-            timestamp = batch_data_tiemstamp[1]
+            batch_data = batch_data_time[0]
+            times = batch_data_time[1]
             
             start_batch_time = time.time()
             if batch_data is None:
@@ -123,7 +123,7 @@ def main_worker(local_rank, nprocs, opt):
             # becomes a list, which containing all data from other cavs
             # as well
             batch_data['ego']['epoch'] = epoch
-            output_dict = model(batch_data['ego'], opencood_train_dataset, timestamp)
+            output_dict = model(batch_data['ego'], opencood_train_dataset, times)
             # first argument is always your output dictionary,
             # second argument is always your label dictionary.
             final_loss, single_loss_i, single_loss_v = 0.0, 0.0, 0.0
@@ -171,7 +171,7 @@ def main_worker(local_rank, nprocs, opt):
 
             torch.cuda.empty_cache()
 
-        if epoch % hypes['train_params']['save_freq'] == 0 and local_rank == 0 and epoch > 5: # 5 20
+        if epoch % hypes['train_params']['save_freq'] == 0 and local_rank == 0 and epoch > 5: # 20
             torch.save(model.state_dict(),
                        os.path.join(saved_path,
                                     'net_epoch%d.pth' % (epoch + 1)))

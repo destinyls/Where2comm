@@ -4,18 +4,6 @@ import torch.nn as nn
 from torch.nn import functional as F
 from opencood.models.fuse_modules.feature_flow import FlowGenerator
 
-def calculate_delta_t(timestamps):
-    delta_t = []
-    
-    for time_list in timestamps:
-        start_time = int(time_list[0])
-        end_time = int(time_list[-1])
-    
-        delta = end_time - start_time
-        delta_t.append(delta*0.1)   # 100ms -> 0.1s
-    
-    return delta_t 
-
 class How2commPreprocess(nn.Module):
     def __init__(self, args):
         super(How2commPreprocess, self).__init__()
@@ -49,8 +37,8 @@ class How2commPreprocess(nn.Module):
 
         return warped_feats
 
-    def forward(self, feat_curr, feat_history, feat_future, record_len, timestamp):
-            
+    def forward(self, feat_curr, feat_history, feat_future, record_len, time):
+        
         feat_curr = self.regroup(feat_curr, record_len)
         feat_history = [self.regroup(feat_hist, record_len) for feat_hist in feat_history]
         feat_future = self.regroup(feat_future[0], record_len)
@@ -71,8 +59,7 @@ class How2commPreprocess(nn.Module):
             feat_list[bs] += [feat_curr[bs], feat_history_list[bs], feat_future[bs]]
         # feat_list dim : batch_size, 2(cur, his)  对应的 timestamp eg. cur 015550  his[015548  015547 015546], fut 015560 [cav, feature_ch, ..., ...]
 
-        delta_t = calculate_delta_t(timestamp)
-        feat_final, offset_loss = self.flow(feat_list, delta_t)
+        feat_final, offset_loss = self.flow(feat_list, time)
 
         return feat_final, offset_loss
     

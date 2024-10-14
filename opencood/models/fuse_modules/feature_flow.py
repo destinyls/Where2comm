@@ -270,17 +270,21 @@ class FlowGenerator(nn.Module):
         return flow_grid
 
     def flow_warp_feats(self, feats, flow):
+        if torch.all(flow.eq(0)): # flow为0
+            return feats
         flow_grid = self.get_grid(flow)
         warped_feats = F.grid_sample(
             feats, flow_grid, mode="bilinear", padding_mode="border")
 
         return warped_feats
 
-    def forward(self, feat_list, delta_t): 
+    def forward(self, feat_list, times): 
         
         total_loss = torch.zeros(1).to(feat_list[0][0].device)
         final_list = []
         for bs in range(len(feat_list)): 
+            t_his_cur, t_cur_fut = times[bs][0], times[bs][1]
+            
             time_list = feat_list[bs] # timestamp cur 015550 his[015548 015547 015546]  fut 015560
             cur_timestamp = time_list[0]
             his_timestamps = time_list[1] 
@@ -312,8 +316,10 @@ class FlowGenerator(nn.Module):
             # offset, scale = self.pre_encoder(colla_fusion)  # 估计 offset scale
             # feat_estimate_target = self.flow_warp_feats(feat_source, offset) 
             
-            velocity, scale = self.pre_encoder(colla_fusion) 
-            feat_estimate_target = self.flow_warp_feats(feat_source, velocity * delta_t[bs])      
+            offset, scale = self.pre_encoder(colla_fusion) 
+            predict_offset = offset / t_his_cur * t_cur_fut
+            feat_estimate_target = self.flow_warp_feats(feat_source, predict_offset)      
+            
             feat_estimate_target = feat_estimate_target * scale   # Z^t_j predicted collaborator feature
 
             final_list.append(feat_estimate_target) 
