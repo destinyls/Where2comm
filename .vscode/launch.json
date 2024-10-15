@@ -24,12 +24,12 @@
         "program": "${workspaceFolder}/opencood/tools/inference.py",
         "args": [
           "--model_dir",
-          "${workspaceFolder}/opencood/logs/exp/flowPre_dair_where2comm_max_multiscale_resnet_2024_10_14_18_59_48",
+          "${workspaceFolder}/opencood/logs/exp/flowPre_dair_where2comm_max_multiscale_resnet_2024_10_15_06_25_40",
           "--fusion_method",
           "intermediate_with_comm"
         ],
         "env": {
-          "CUDA_VISIBLE_DEVICES": "3"
+          "CUDA_VISIBLE_DEVICES": "8"
         },
         "console": "integratedTerminal",
         "justMyCode": false

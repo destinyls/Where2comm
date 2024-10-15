@@ -103,7 +103,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
 
         self.root_dir = params['data_dir']
         self.split_info = load_json(split_dir)  # split train/validate set
-        path_name = 'cooperative/data_info_delay_200ms.json'
+        path_name = 'cooperative/data_info_delay_300ms.json'
         co_datainfo = load_json(os.path.join(self.root_dir, path_name))
         
         self.co_data = OrderedDict()
@@ -145,8 +145,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
         
         if self.train_flow: 
             # k = random.choice([1, 2]) 
-            # k = random.choice([1, 2, 3, 4, 5, 8, 10])
-            k = random.randint(1, 10)
+            k = random.choice([1, 2, 3, 4, 5, 8, 10])
             fur_idx = cur_idx + k
             self.t_cur_fut = k
         else: # 推理时  无须加载未来帧

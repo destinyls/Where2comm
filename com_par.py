@@ -47,8 +47,8 @@ def compare_model_params(state_dict1, state_dict2, param_keys):
 
 # 加载两个模型的权重
 param_keys = ['model_infra', 'model_vehicle', 'reg_head', 'cls_head']
-file1_path = 'opencood/logs/exp/flowPre_dair_where2comm_max_multiscale_resnet_2024_10_13_23_53_27/net_epoch7.pth'
-file2_path = 'opencood/logs/exp/flowPre_dair_where2comm_max_multiscale_resnet_2024_10_13_23_53_27/net_epoch11.pth'
+file1_path = 'opencood/logs/exp/baseline_dair_where2comm_max_multiscale_resnet_2024_09_04_23_11_03/net_epoch69.pth'
+file2_path = 'opencood/logs/exp/flowPre_dair_where2comm_max_multiscale_resnet_2024_10_14_22_57_53/net_epoch9.pth'
 
 state_dict1 = load_model_weights(file1_path, param_keys)
 state_dict2 = load_model_weights(file2_path, param_keys)

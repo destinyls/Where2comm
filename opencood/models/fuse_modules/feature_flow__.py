@@ -303,21 +303,20 @@ class FlowGenerator(nn.Module):
             
             feat = colla_feat[:, 0*self.channel:(0+2)*self.channel, :, :]
             colla_fusion = self.backbone(feat) 
-            offset, scale = self.pre_encoder(colla_fusion)
             
             if his_frames > 1:
-                for j in range(1, his_frames):
-                    current_feat = colla_feat[:, j*self.channel:(j+2)*self.channel, :, :] 
-                    colla_fusion = self.backbone(current_feat) 
-                    off, scale = self.pre_encoder(colla_fusion) 
-                    offset += off
+                for j in range(2, his_frames+1):
+                    current_feat = colla_feat[:, j*self.channel:(j+1)*self.channel, :, :] 
+                    combined_feat = torch.cat((colla_fusion, current_feat), dim=1) 
+                    colla_fusion = self.backbone(combined_feat)   # colla_fusion  用到了 his and cur frame
             
             feat_source = colla_feat[:, -self.channel*2:-self.channel, :, :]  # cur 015550
             feat_target = colla_feat[:, -self.channel:, :, :] # fut  015560
 
             # offset, scale = self.pre_encoder(colla_fusion)  # 估计 offset scale
             # feat_estimate_target = self.flow_warp_feats(feat_source, offset) 
-             
+            
+            offset, scale = self.pre_encoder(colla_fusion) 
             predict_offset = offset / t_his_cur * t_cur_fut
             feat_estimate_target = self.flow_warp_feats(feat_source, predict_offset)      
             

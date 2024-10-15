@@ -198,7 +198,7 @@ def evaluation(model, data_loader, opt, opencood_dataset, device, test_inference
     else:
         comm_rates = 0
     ap_30, ap_50, ap_70 = eval_utils.eval_final_results(result_stat, opt.model_dir)
-    with open(os.path.join(opt.model_dir, agent_staus + '_result_delay800ms_before1.txt'), 'a+') as f:
+    with open(os.path.join(opt.model_dir, agent_staus + '_result_delay300ms_before1.txt'), 'a+') as f:
     # with open(os.path.join(opt.model_dir, agent_staus + 'result.txt'), 'a+') as f:
         msg = 'Epoch: {} | AP @0.3: {:.04f} | AP @0.5: {:.04f} | AP @0.7: {:.04f}\n'.format(epoch_id, ap_30, ap_50, ap_70)
         if opt.comm_thre is not None:
@@ -245,9 +245,12 @@ def inference_status(agent_staus):
     if torch.cuda.is_available():
         model.cuda()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    eval_epochs = [23, 25]
     for model_name in os.listdir(opt.model_dir):
         if ".pth" not in model_name: continue
         epoch_id = int(model_name.split('.')[0][9:])
+        if epoch_id not in eval_epochs:
+            continue
         epoch_id, model = train_utils.load_saved_model(opt.model_dir, model, epoch_id)
         model.eval()
 
