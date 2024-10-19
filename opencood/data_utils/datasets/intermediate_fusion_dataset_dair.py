@@ -103,19 +103,25 @@ class IntermediateFusionDatasetDAIR(Dataset):
 
         self.root_dir = params['data_dir']
         self.split_info = load_json(split_dir)  # split train/validate set
-        path_name = 'cooperative/data_info_delay_300ms.json'
+        path_name = 'cooperative/data_info_delay_0ms.json'
         co_datainfo = load_json(os.path.join(self.root_dir, path_name))
         
         self.co_data = OrderedDict()
         self.frame_id_list = []
+        self.veh_infra_id_list = {}  # pair{veh_id : infra_id}
         for frame_info in co_datainfo:
             veh_frame_id = frame_info['vehicle_image_path'].split("/")[-1].replace(".jpg", "")
             self.co_data[veh_frame_id] = frame_info
             self.frame_id_list.append(veh_frame_id)
+            infra_frame_id = frame_info['infrastructure_image_path'].split("/")[-1].replace(".jpg", "")
+            self.veh_infra_id_list[veh_frame_id] = infra_frame_id
         self.frame_id_list = sorted(self.frame_id_list)
         
         self.t_cur_fut = extract_ms_and_divide(path_name)
         self.t_his_cur = self.before_frame
+        
+        self.infra_timestamp = load_json("infra_timestamps.json")
+        self.veh_timestamp = load_json("veh_timestamps.json")
         
     def retrieve_multi_data(self, idx, select_num):
         
@@ -133,7 +139,6 @@ class IntermediateFusionDatasetDAIR(Dataset):
                 index = self.frame_id_list.index(cur_timestamp)
                 if index > 0:
                     cur_timestamp = self.frame_id_list[index - 1] # 前一帧
-                    
                     base_data_dict = self.retrieve_base_data_before(cur_timestamp)
                 else:
                     # 没有前一帧 就重复有的 最靠前的那帧
@@ -144,8 +149,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
             select_dict.append(base_data_dict)
         
         if self.train_flow: 
-            # k = random.choice([1, 2]) 
-            k = random.choice([1, 2, 3, 4, 5, 8, 10])
+            k = random.choice([1, 2]) 
             fur_idx = cur_idx + k
             self.t_cur_fut = k
         else: # 推理时  无须加载未来帧
@@ -162,6 +166,11 @@ class IntermediateFusionDatasetDAIR(Dataset):
         timestamp_list.append(fur_timestamp)
         select_dict.append(base_data_dict)
         
+        self.t_his_cur = ( int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[-2]]]) )  // 1000
+        self.t_cur_fut = ( int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[-1]]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) )  // 1000
+        
+        if self.t_his_cur == 0:
+            self.t_his_cur = 100
         times = [self.t_his_cur, self.t_cur_fut]
         
         return select_dict,timestamp_list,times

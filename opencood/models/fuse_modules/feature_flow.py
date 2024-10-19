@@ -317,8 +317,8 @@ class FlowGenerator(nn.Module):
 
             # offset, scale = self.pre_encoder(colla_fusion)  # 估计 offset scale
             # feat_estimate_target = self.flow_warp_feats(feat_source, offset) 
-             
-            predict_offset = offset / t_his_cur * t_cur_fut
+            
+            predict_offset = offset * (t_cur_fut / t_his_cur)
             feat_estimate_target = self.flow_warp_feats(feat_source, predict_offset)      
             
             feat_estimate_target = feat_estimate_target * scale   # Z^t_j predicted collaborator feature

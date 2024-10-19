@@ -198,7 +198,7 @@ def evaluation(model, data_loader, opt, opencood_dataset, device, test_inference
     else:
         comm_rates = 0
     ap_30, ap_50, ap_70 = eval_utils.eval_final_results(result_stat, opt.model_dir)
-    with open(os.path.join(opt.model_dir, agent_staus + '_result_delay300ms_before1.txt'), 'a+') as f:
+    with open(os.path.join(opt.model_dir, agent_staus + '_result_delay800ms_before1.txt'), 'a+') as f:
     # with open(os.path.join(opt.model_dir, agent_staus + 'result.txt'), 'a+') as f:
         msg = 'Epoch: {} | AP @0.3: {:.04f} | AP @0.5: {:.04f} | AP @0.7: {:.04f}\n'.format(epoch_id, ap_30, ap_50, ap_70)
         if opt.comm_thre is not None:

@@ -142,7 +142,7 @@ model:
         mode:  flowPre   # baseline; maskAndRec; onlyMask;  onlyVehFea; flowPre; correctPosition(暂不考虑)
         mask_ratio:  1 # 0.5 0.7 0.9 0.95
         his_flag: true
-        before_frame: 1
+        before_frame: 1 # 2 # 3
         flow_train: true  # val->false
         base_bev_backbone: *base_bev_backbone
       
