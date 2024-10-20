@@ -79,7 +79,6 @@ class IntermediateFusionDatasetDAIR(Dataset):
         else:
             self.his_flag = False
             self.before_frame = 0
-            self.train_flow = False
             
         self.pre_processor = build_preprocessor(params['preprocess'],
                                                 train)
@@ -140,14 +139,22 @@ class IntermediateFusionDatasetDAIR(Dataset):
         # fut_infra_data
         infra_fur_id = None
         if self.train_flow: 
-            k = random.choice([1, 2]) 
+            # k = random.choice([1, 2]) 
+            # finetune
+            k = 0
             infra_fur_id = self.infra_id_list[infra_id_index + k] if (infra_id_index+k) < len(self.infra_id_list) else self.infra_id_list[-1]
         else: # 推理时  无须加载未来帧
             infra_fur_id = self.infra_id_list[infra_id_index]               
         fut_infra_data = self.retrieve_base_infra_data_hisfut(infra_fur_id, system_error_offset)
 
         self.t_his_cur = (int(self.infra_timestamp[infra_id])-int(self.infra_timestamp[infra_his_id])) // 1000
-        self.t_cur_fut = (int(self.infra_timestamp[infra_fur_id])-int(self.infra_timestamp[infra_id])) // 1000
+        
+        # train flow_predict
+        # self.t_cur_fut = (int(self.infra_timestamp[infra_fur_id])-int(self.infra_timestamp[infra_id])) // 1000
+        # finetune head
+        self.t_cur_fut = (int(self.veh_timestamp[veh_frame_id])-int(self.infra_timestamp[infra_id])) // 1000
+        # inference
+        # self.t_cur_fut = self.predict_delay
         
         if self.t_his_cur == 0:
             self.t_his_cur = 100

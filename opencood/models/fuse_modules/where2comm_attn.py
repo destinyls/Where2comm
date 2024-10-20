@@ -417,6 +417,8 @@ class Where2comm(nn.Module):
                     elif self.mode == "flowPre":
                         if not self.training : # inference predict_flow
                             node_features = torch.cat((node_features[0].unsqueeze(0), infra_prefea[i][b].unsqueeze(0)), dim=0)   # vehicle+infra [2, 64, 100, 252]
+                        # finetune
+                        node_features = torch.cat((node_features[0].unsqueeze(0), infra_prefea[i][b].unsqueeze(0)), dim=0)   # vehicle+infra [2, 64, 100, 252]
                         neighbor_feature = warp_affine_simple(node_features, t_matrix[0, :, :, :], (H, W))
                         fuse_feature = self.fuse_modules[i](neighbor_feature)   # [2, 64, 100, 252]  
                     elif self.mode == "correctPosition":   # 暂时不考虑这个
