@@ -435,7 +435,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
     def __getitem__(self, idx):
         
         base_data_dict = self.retrieve_multi_data(idx,self.before_frame) 
-               
+        
         base_data_dict = add_noise_data_dict(base_data_dict,self.params['noise_setting'])
 
         processed_data_dict = OrderedDict()

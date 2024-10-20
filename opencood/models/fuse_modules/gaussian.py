@@ -36,7 +36,7 @@ class Gaussian(nn.Module):
         tensor[mask] = 0.0
         return tensor
 
-    def forward(self, pred_box_infra, infra_features, level, sample_idx):
+    def forward(self, pred_box_infra, infra_features, level):
         downsample_rate = self.downsample_rate * math.pow(2, level)
         _, C, H, W = infra_features.shape
         device = infra_features.device
@@ -76,54 +76,9 @@ class Gaussian(nn.Module):
             gaussian_maps_list.append(gaussian_map)
         gaussian_maps = torch.stack(gaussian_maps_list, dim=0).unsqueeze(0).to(device)  #[1, N, H, W]
 
-        '''
-        gaussian_maps_demo = torch.sum(torch.abs(gaussian_maps), dim=1).detach().cpu().numpy()[0] * 100
-        cv2.imwrite(os.path.join("demo", "infra_features_demo_2_" + str(sample_idx.cpu().numpy()) + ".jpg"), gaussian_maps_demo)
-        '''
-        '''
-        center_points_features = center_points_features.transpose(0, 1).expand(C, N, H, W)  # [N, C, 1, 1] -> [C, N, H, W]
-        select_features = (torch.sum(center_points_features * gaussian_maps, dim=1) / N ).unsqueeze(0)
-        '''
         # assert not torch.isnan(select_features).any() and not torch.isinf(select_features).any()
         gaussian_maps = torch.sum(gaussian_maps, dim=1).unsqueeze(0)
-        if gaussian_maps.shape[2] == 100 and False:
-            gaussian_maps_demo = gaussian_maps[0].detach().cpu().numpy()[0] * 100            
-            cv2.imwrite(os.path.join("demo", "infra_features_demo_" + str(sample_idx.cpu().numpy()) + ".jpg"), gaussian_maps_demo)
-        # gaussian_maps[:, :, :, :] = 1.0
-        # gaussian_maps = self.random_zero_out(gaussian_maps, p=0.05)
-        if gaussian_maps.shape[2] == 100 and False:
-            gaussian_maps_demo = gaussian_maps[0].detach().cpu().numpy()[0] * 100
-            cv2.imwrite(os.path.join("demo", "infra_features_demo_zero_out_" + str(sample_idx.cpu().numpy()) + ".jpg"), gaussian_maps_demo)
-        # print("1. ", torch.sum(gaussian_maps) / (1 * H * W))
+
         gaussian_maps = gaussian_maps.expand(1, C, H, W)
 
-        # print("2. ", torch.sum(gaussian_maps) / (C * H * W))
         return gaussian_maps
-
-
-if __name__ == "__main__":
-    print("hello world...")
-    img_path = "datasets/dair-v2x-c/training/vehicle-side/image/000002.jpg"
-    img = cv2.imread(img_path)
-    features = torch.from_numpy(img).permute(2,0,1).unsqueeze(0).float()
-    print(features.shape, features.dtype)
-    cv2.imwrite("img.jpg", features[0].permute(1,2,0).numpy())
-
-    features = F.interpolate(features, (1080, 1080), mode="bilinear", align_corners=False)
-    cv2.imwrite("img1.jpg", features[0].permute(1,2,0).numpy())
-    features = F.interpolate(features, (img.shape[0], img.shape[1]), mode="bilinear", align_corners=False)
-    cv2.imwrite("img2.jpg", features[0].permute(1,2,0).numpy())
-
-    '''
-    patch_size = 40
-    x, hw = patchify(features, patch_size=patch_size)
-    x_masked, mask, ids_restore = random_masking(x, mask_ratio=0.5)
-    print(x_masked.shape, mask.unsqueeze(-1).shape, ids_restore.shape, mask.unsqueeze(-1).repeat(1, 1, patch_size*patch_size))
-    features_masked = unpatchify(mask.unsqueeze(-1).repeat(1, 1, patch_size*patch_size), patch_size, hw)
-
-    features = unpatchify(x, patch_size, hw)
-
-    print("11", features_masked[0,0].shape, features.shape, features[0].permute(1,2,0).shape)
-    cv2.imwrite("mask.jpg", features_masked[0,0].numpy() * 255)
-    cv2.imwrite("features.jpg", features[0].permute(1,2,0).numpy())
-    '''

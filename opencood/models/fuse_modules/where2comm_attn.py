@@ -291,14 +291,12 @@ class Where2comm(nn.Module):
             loss_offset = None
               
         if self.multi_scale:   # True
-            pred_box_infra_list, pred_score_infra_list, sample_idx_list = [], [], []
+            pred_box_infra_list, pred_score_infra_list = [], []
             
             for b in range(B):
                 pred_box_infra, pred_score_infra = dataset.post_process(data_dict[b], output_dict[b], selected_agent=1, middle_post_process=True)  # infra
-                sample_idx = data_dict[b]['sample_idx']
                 pred_box_infra_list.append(pred_box_infra)
-                pred_score_infra_list.append(pred_score_infra)
-                sample_idx_list.append(sample_idx)
+                pred_score_infra_list.append(pred_score_infra) 
                 
             ups = []
             with_resnet = True if hasattr(backbone, 'resnet') else False
@@ -341,8 +339,8 @@ class Where2comm(nn.Module):
                     elif self.mode == "onlyVehFea":
                         fuse_feature = node_features[0] # torch.Size([64, 100, 252])
                     elif self.mode == "maskAndRec":   
-                        pred_box_infra, pred_score_infra, sample_idx = pred_box_infra_list[b], pred_score_infra_list[b], sample_idx_list[b]
-                        gaussian_maps = self.gaussian(pred_box_infra, torch.zeros_like(node_features[1].unsqueeze(0)), i, sample_idx)                 
+                        pred_box_infra, pred_score_infra = pred_box_infra_list[b], pred_score_infra_list[b]
+                        gaussian_maps = self.gaussian(pred_box_infra, torch.zeros_like(node_features[1].unsqueeze(0)), i)                 
                         
                         infra_features = node_features[1].unsqueeze(0) * (gaussian_maps > 0).float()  
                         n, c, h, w = infra_features.shape[0], infra_features.shape[1], infra_features.shape[2], infra_features.shape[3]
@@ -385,8 +383,8 @@ class Where2comm(nn.Module):
                         fuse_feature = warp_affine_simple(fuse_feature, t_matrix[0, :, :, :], (H, W))
                         fuse_feature = self.fuse_modules[i](fuse_feature)
                     elif self.mode == "onlyMask":   
-                        pred_box_infra, pred_score_infra, sample_idx = pred_box_infra_list[b], pred_score_infra_list[b], sample_idx_list[b]
-                        gaussian_maps = self.gaussian(pred_box_infra, torch.zeros_like(node_features[1].unsqueeze(0)), i, sample_idx)                 
+                        pred_box_infra, pred_score_infra = pred_box_infra_list[b], pred_score_infra_list[b]
+                        gaussian_maps = self.gaussian(pred_box_infra, torch.zeros_like(node_features[1].unsqueeze(0)), i)                 
                         
                         infra_features = node_features[1].unsqueeze(0) * (gaussian_maps > 0).float()  
                         n, c, h, w = infra_features.shape[0], infra_features.shape[1], infra_features.shape[2], infra_features.shape[3]
