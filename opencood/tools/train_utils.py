@@ -178,7 +178,7 @@ def setup_train(hypes, local_rank=0):
     current_time = datetime.now()
     timestamp = current_time.strftime("_%Y_%m_%d_%H_%M_%S")
     mode = hypes['model']['args']['fusion_args']['para']['mode'] + "_"
-    folder_name = mode + model_name + timestamp
+    folder_name = "branch_new_devel" + mode + model_name + timestamp
     current_path = os.path.dirname(__file__)
     current_path = os.path.join(current_path, '../logs/exp')
         
