@@ -25,7 +25,8 @@ if __name__ == "__main__":
     json_file_path = 'dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure/vehicle-side/data_info.json'
 
     data = load_json(json_file_path)
-    lidar_info = extract_lidar_info(data)
+    print(len(data))
+    # lidar_info = extract_lidar_info(data)
 
-    output_file_path = 'lidar_timestamps.json' 
-    save_results(lidar_info, output_file_path)
+    # output_file_path = 'lidar_timestamps.json' 
+    # save_results(lidar_info, output_file_path)

@@ -270,12 +270,9 @@ class FlowGenerator(nn.Module):
         return flow_grid
 
     def flow_warp_feats(self, feats, flow):
-        if torch.all(flow.eq(0)): # flow为0
-            return feats
         flow_grid = self.get_grid(flow)
         warped_feats = F.grid_sample(
             feats, flow_grid, mode="bilinear", padding_mode="border")
-
         return warped_feats
 
     def forward(self, feat_list, times): 
@@ -317,11 +314,13 @@ class FlowGenerator(nn.Module):
 
             # offset, scale = self.pre_encoder(colla_fusion)  # 估计 offset scale
             # feat_estimate_target = self.flow_warp_feats(feat_source, offset) 
-            
-            predict_offset = offset * (t_cur_fut / t_his_cur)
-            feat_estimate_target = self.flow_warp_feats(feat_source, predict_offset)      
-            
-            feat_estimate_target = feat_estimate_target * scale   # Z^t_j predicted collaborator feature
+
+            if t_cur_fut != 0:
+                predict_offset = offset * (t_cur_fut / t_his_cur)
+                feat_estimate_target = self.flow_warp_feats(feat_source, predict_offset)      
+                feat_estimate_target = feat_estimate_target * scale   # Z^t_j predicted collaborator feature
+            else:
+                feat_estimate_target = feat_source
 
             final_list.append(feat_estimate_target) 
             similarity = torch.cosine_similarity(torch.flatten(feat_target, start_dim=1, end_dim=3), torch.flatten(
