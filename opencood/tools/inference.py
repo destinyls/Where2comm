@@ -85,7 +85,7 @@ def result2dict(box3d_tensor, score_tensor):
     return output_dict
 
 
-def evaluation(model, data_loader, opt, opencood_dataset, device, test_inference, hypes, left_hand, epoch_id, agent_staus):
+def evaluation(model, data_loader, opt, opencood_dataset, device, test_inference, hypes, left_hand, epoch_id, agent_staus, delay):
     # Create the dictionary for evaluation
     result_stat = {0.3: {'tp': [], 'fp': [], 'gt': 0},
                    0.5: {'tp': [], 'fp': [], 'gt': 0},
@@ -198,7 +198,7 @@ def evaluation(model, data_loader, opt, opencood_dataset, device, test_inference
     else:
         comm_rates = 0
     ap_30, ap_50, ap_70 = eval_utils.eval_final_results(result_stat, opt.model_dir)
-    with open(os.path.join(opt.model_dir, agent_staus + '_result_delay800ms_before1.txt'), 'a+') as f:
+    with open(os.path.join(opt.model_dir, agent_staus + '_result_delay'+str(delay) + 'ms.txt'), 'a+') as f:
     # with open(os.path.join(opt.model_dir, agent_staus + 'result.txt'), 'a+') as f:
         msg = 'Epoch: {} | AP @0.3: {:.04f} | AP @0.5: {:.04f} | AP @0.7: {:.04f}\n'.format(epoch_id, ap_30, ap_50, ap_70)
         if opt.comm_thre is not None:
@@ -206,7 +206,7 @@ def evaluation(model, data_loader, opt, opencood_dataset, device, test_inference
         f.write(msg)
         print(msg)
 
-def inference_status(agent_staus):
+def inference_status(agent_staus, delay):
     opt = test_parser()
     assert opt.fusion_method in ['late', 'early', 'intermediate', 'intermediate_with_comm', 'no']
     hypes = yaml_utils.load_yaml(None, opt)
@@ -230,6 +230,10 @@ def inference_status(agent_staus):
     print(f"Left hand visualizing: {left_hand}")
 
     print('Dataset Building')
+    
+    hypes['model']['args']['fusion_args']['para']['flow_train'] = False
+    hypes['delay_json_path'] = 'cooperative/data_info_delay_'+ str(delay) + 'ms.json'
+    
     opencood_dataset = build_dataset(hypes, visualize=True, train=False)
     data_loader = DataLoader(opencood_dataset,
                              batch_size=1,
@@ -254,16 +258,18 @@ def inference_status(agent_staus):
         epoch_id, model = train_utils.load_saved_model(opt.model_dir, model, epoch_id)
         model.eval()
 
-        evaluation(model, data_loader, opt, opencood_dataset, device, test_inference, hypes, left_hand, epoch_id, agent_staus)
+        evaluation(model, data_loader, opt, opencood_dataset, device, test_inference, hypes, left_hand, epoch_id, agent_staus, delay)
     
 
 def main():
-    # eval V+I
-    inference_status("V+I")
-    # eval singleV
-    # inference_status("singleV")
-    # eval singleI
-    # inference_status("singleI")
+    delay = [0, 100, 200, 300, 400, 500, 800, 1000]
+    for d in delay:    
+        # eval V+I
+        inference_status("V+I",d)
+        # eval singleV
+        # inference_status("singleV")
+        # eval singleI
+        # inference_status("singleI")
 
 if __name__ == '__main__':
     main()

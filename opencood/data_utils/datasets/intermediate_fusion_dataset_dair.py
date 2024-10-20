@@ -88,7 +88,6 @@ class IntermediateFusionDatasetDAIR(Dataset):
         else:
             self.his_flag = False
             self.before_frame = 0
-            self.train_flow = False
             
         self.pre_processor = build_preprocessor(params['preprocess'],
                                                 train)
@@ -103,7 +102,12 @@ class IntermediateFusionDatasetDAIR(Dataset):
 
         self.root_dir = params['data_dir']
         self.split_info = load_json(split_dir)  # split train/validate set
-        path_name = 'cooperative/data_info_delay_0ms.json'
+        
+        if "delay_json_path" in params: # 只有inference时 有这个参数
+            path_name = params["delay_json_path"]
+            self.predict_delay = int(re.search(r'(\d+)ms', path_name).group(1)) if re.search(r'(\d+)ms', path_name) else None
+        else:
+            path_name = 'cooperative/data_info_delay_0ms.json'
         co_datainfo = load_json(os.path.join(self.root_dir, path_name))
         
         self.co_data = OrderedDict()
@@ -172,8 +176,11 @@ class IntermediateFusionDatasetDAIR(Dataset):
         self.t_his_cur = ( int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[-2]]]) )  // 1000
         # self.t_cur_fut = ( int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[-1]]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) )  // 1000
         
+        # inference
+        self.t_cur_fut = self.predict_delay
+        
         # fine_tune  head
-        self.t_cur_fut = ( int(self.veh_timestamp[timestamp_list[-1]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) )  // 1000
+        # self.t_cur_fut = ( int(self.veh_timestamp[timestamp_list[-1]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) )  // 1000
         
         if self.t_his_cur == 0:
             self.t_his_cur = 100
