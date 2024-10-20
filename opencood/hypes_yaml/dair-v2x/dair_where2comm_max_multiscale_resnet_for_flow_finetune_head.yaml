@@ -4,7 +4,8 @@ data_dir: "dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure"
 root_dir: "dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure/train.json"
 validate_dir: "dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure/val.json"
 test_dir: "dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure/val.json"
-resume: "opencood/logs/exp/baseline_dair_where2comm_max_multiscale_resnet_2024_09_04_23_11_03/net_epoch69.pth"
+# resume: "opencood/logs/exp/baseline_dair_where2comm_max_multiscale_resnet_2024_09_04_23_11_03/net_epoch69.pth"
+resume: "opencood/logs/exp/flowPre_dair_where2comm_max_multiscale_resnet_2024_10_19_22_06_48/net_epoch29.pth"
 
 noise_setting:
   add_noise: False
@@ -85,7 +86,8 @@ model:
     compression: 0 # compression rate
     vehicle_fix: true
     infra_fix: true
-    head_fix: true
+    head_fix: False
+    fuse_fix: true  # for finetune head
 
     pillar_vfe:
       use_norm: true

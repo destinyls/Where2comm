@@ -97,7 +97,6 @@ class PointPillar(nn.Module):
             p.requires_grad = False
         for p in self.reg_head.parameters():
             p.requires_grad = False
-        
         # fix running_mean and running_var 
         for module in self.modules():
             if isinstance(module, (torch.nn.BatchNorm1d, torch.nn.BatchNorm2d, torch.nn.BatchNorm3d)):
@@ -132,13 +131,18 @@ class PointPillarWhere2comm(nn.Module):
 
         if args['head_fix']:
             self.head_fix()
+        
+        if args['fuse_fix']:
+            self.fuse_fix()
             
     def head_fix(self):    
-        # for p in self.fusion_net.parameters():
-        #     p.requires_grad = False
         for p in self.cls_head.parameters():
             p.requires_grad = False
         for p in self.reg_head.parameters():
+            p.requires_grad = False
+        
+    def fuse_fix(self):    
+        for p in self.fusion_net.parameters():
             p.requires_grad = False
 
     def split_data(self, voxel_features, voxel_coords, voxel_num_points, record_len):

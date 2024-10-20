@@ -149,6 +149,8 @@ class IntermediateFusionDatasetDAIR(Dataset):
             select_dict.append(base_data_dict)
         
         if self.train_flow: 
+            # k = random.choice([1, 2])  
+            # finetune
             k = 0
             fur_idx = cur_idx + k
             self.t_cur_fut = k
@@ -166,8 +168,12 @@ class IntermediateFusionDatasetDAIR(Dataset):
         timestamp_list.append(fur_timestamp)
         select_dict.append(base_data_dict)
         
+        # 都是用infra_timestamp计算
         self.t_his_cur = ( int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[-2]]]) )  // 1000
-        self.t_cur_fut = ( int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[-1]]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) )  // 1000
+        # self.t_cur_fut = ( int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[-1]]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) )  // 1000
+        
+        # fine_tune  head
+        self.t_cur_fut = ( int(self.veh_timestamp[timestamp_list[-1]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) )  // 1000
         
         if self.t_his_cur == 0:
             self.t_his_cur = 100

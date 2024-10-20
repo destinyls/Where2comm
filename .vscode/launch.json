@@ -18,6 +18,22 @@
       },
 
       {
+        "name": "debug Train_Finetune",
+        "type": "python",
+        "request": "launch",
+        "program": "${workspaceFolder}/opencood/tools/train_singleGPU.py",
+        "args": [
+          "--hypes_yaml",
+          "${workspaceFolder}/opencood/hypes_yaml/dair-v2x/dair_where2comm_max_multiscale_resnet_for_flow_finetune_head.yaml",
+        ],
+        "env": {
+          "CUDA_VISIBLE_DEVICES": "5"
+        },
+        "console": "integratedTerminal",
+        "justMyCode": false
+      },
+
+      {
         "name": "debug Inference",
         "type": "python",
         "request": "launch",
