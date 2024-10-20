@@ -24,7 +24,7 @@
         "program": "${workspaceFolder}/opencood/tools/inference.py",
         "args": [
           "--model_dir",
-          "${workspaceFolder}/opencood/logs/hisexp/flowPre_dair_where2comm_max_multiscale_resnet_2024_10_14_18_59_48",
+          "${workspaceFolder}/opencood/logs/exp/branch_new_develflowPre_dair_where2comm_max_multiscale_resnet_2024_10_20_15_42_35",
           "--fusion_method",
           "intermediate_with_comm"
         ],

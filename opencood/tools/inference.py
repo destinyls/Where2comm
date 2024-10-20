@@ -93,14 +93,12 @@ def evaluation(model, data_loader, opt, opencood_dataset, device, test_inference
     evaluator = Evaluator(["car"])
     total_comm_rates = []
 
-    for i, batch_data_tiemstamp in tqdm(enumerate(data_loader)):
+    for i, batch_data in tqdm(enumerate(data_loader)):
         with torch.no_grad():
             
-            batch_data = batch_data_tiemstamp[0]
-            timestamp = batch_data_tiemstamp[1]
-            
             batch_data = train_utils.to_device(batch_data, device)
-            frame_id = int(batch_data["ego"]["sample_idx"])
+            # frame_id = int(batch_data["ego"]["sample_idx"])
+            frame_id = 0
             if opt.fusion_method == 'late':
                 pred_box_tensor, pred_score, gt_box_tensor = \
                     inference_utils.inference_late_fusion(batch_data,
@@ -126,7 +124,7 @@ def evaluation(model, data_loader, opt, opencood_dataset, device, test_inference
                 pred_box_tensor, pred_score, gt_box_tensor, comm_rates = \
                     inference_utils.inference_intermediate_fusion_withcomm(batch_data,
                                                                   model,
-                                                                  opencood_dataset, timestamp)
+                                                                  opencood_dataset)
                 total_comm_rates.append(comm_rates)
             else:
                 raise NotImplementedError('Only early, late and intermediate, no, intermediate_with_comm'
@@ -249,7 +247,7 @@ def inference_status(agent_staus, delay):
     if torch.cuda.is_available():
         model.cuda()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    eval_epochs = [23, 25]
+    eval_epochs = [25, 27]
     for model_name in os.listdir(opt.model_dir):
         if ".pth" not in model_name: continue
         epoch_id = int(model_name.split('.')[0][9:])

@@ -143,7 +143,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
             k = random.choice([1, 2]) 
             infra_fur_id = self.infra_id_list[infra_id_index + k] if (infra_id_index+k) < len(self.infra_id_list) else self.infra_id_list[-1]
         else: # 推理时  无须加载未来帧
-            infra_fur_id = infra_id_index               
+            infra_fur_id = self.infra_id_list[infra_id_index]               
         fut_infra_data = self.retrieve_base_infra_data_hisfut(infra_fur_id, system_error_offset)
 
         self.t_his_cur = (int(self.infra_timestamp[infra_id])-int(self.infra_timestamp[infra_his_id])) // 1000
@@ -883,20 +883,20 @@ class IntermediateFusionDatasetDAIR(Dataset):
     
     def collate_batch_test(self, batch):
         assert len(batch) <= 1, "Batch size 1 is required during testing!"
-        [output_dict, times] = self.collate_batch_train(batch)
+        output_dict = self.collate_batch_train(batch)
         if output_dict is None:
             return None
         # check if anchor box in the batch
-        if batch[0][0][0][1]['ego']['anchor_box'] is not None: 
+        if batch[0]['ego']['anchor_box'] is not None: 
             output_dict['ego'].update({'anchor_box_infer':
                 torch.from_numpy(np.array(
-                    batch[0][0][0][1]['ego'][
+                    batch[0]['ego'][
                         'anchor_box']))})
 
         # save the transformation matrix (4, 4) to ego vehicle
         # transformation is only used in post process (no use.)
         # we all predict boxes in ego coord.
-        pairwise_t_matrix = batch[0][0][0][1]['ego']['pairwise_t_matrix']
+        pairwise_t_matrix = batch[0]['ego']['pairwise_t_matrix']
         transformation_matrix_torch = \
             torch.from_numpy(pairwise_t_matrix[0,0]).float()
         transformation_matrix_torch_10 = \
@@ -911,7 +911,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
                                     'transformation_matrix_clean':
                                        transformation_matrix_clean_torch,})
 
-        return [output_dict, times]
+        return output_dict
 
     def get_pairwise_transformation(self, base_data_dict, max_cav):
         """

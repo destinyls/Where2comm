@@ -95,7 +95,7 @@ def inference_early_fusion(batch_data, model, dataset):
                              output_dict)
     return pred_box_tensor, pred_score, gt_box_tensor
 
-def inference_intermediate_fusion_withcomm(batch_data, model, dataset, timestamp):
+def inference_intermediate_fusion_withcomm(batch_data, model, dataset):
     """
     Model inference for early fusion.
 
@@ -114,7 +114,7 @@ def inference_intermediate_fusion_withcomm(batch_data, model, dataset, timestamp
     """
     output_dict = OrderedDict()
     cav_content = batch_data['ego']
-    output_dict['ego'] = model(cav_content, dataset, timestamp)   # 调用model 有forward
+    output_dict['ego'] = model(cav_content, dataset)   # 调用model 有forward
     
     pred_box_tensor, pred_score, gt_box_tensor = \
         dataset.post_process(batch_data,
