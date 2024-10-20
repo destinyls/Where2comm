@@ -94,7 +94,12 @@ class IntermediateFusionDatasetDAIR(Dataset):
 
         self.root_dir = params['data_dir']
         self.split_info = load_json(split_dir)  # split train/validate set
-        path_name = 'cooperative/data_info_delay_0ms.json'
+        
+        if "delay_json_path" in params: # 只有inference时 有这个参数
+            path_name = params["delay_json_path"]
+            self.predict_delay = int(re.search(r'(\d+)ms', path_name).group(1)) if re.search(r'(\d+)ms', path_name) else None
+        else:
+            path_name = 'cooperative/data_info_delay_0ms.json'
         co_datainfo = load_json(os.path.join(self.root_dir, path_name))
         
         self.co_data = OrderedDict()
