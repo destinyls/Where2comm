@@ -149,7 +149,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
             select_dict.append(base_data_dict)
         
         if self.train_flow: 
-            k = random.choice([1, 2]) 
+            k = 0
             fur_idx = cur_idx + k
             self.t_cur_fut = k
         else: # 推理时  无须加载未来帧

@@ -290,16 +290,12 @@ class PointPillarWhere2comm(nn.Module):
             psm_single_i, rm_single_i, spatial_features_i, spatial_features_2d_i= self.model_infra(batch_dict_i)
 
             psm_single, spatial_features, spatial_features_2d = [], [], []
-            for i in range(psm_single_v.shape[0]):  # batch_size
-                psm_single.append(psm_single_v[i, :, :, :])
-                psm_single.append(psm_single_i[i, :, :, :])
             for i in range(spatial_features_v.shape[0]):
                 spatial_features.append(spatial_features_v[i, :, :, :])
                 spatial_features.append(spatial_features_i[i, :, :, :])
             for i in range(spatial_features_2d_v.shape[0]):
                 spatial_features_2d.append(spatial_features_2d_v[i, :, :, :])
                 spatial_features_2d.append(spatial_features_2d_i[i, :, :, :])
-            psm_single = torch.stack(psm_single, dim=0)
             spatial_features = torch.stack(spatial_features, dim=0)
             spatial_features_2d = torch.stack(spatial_features_2d, dim=0)
         

@@ -7,7 +7,7 @@ def add_noise_data_dict(data_dict, noise_setting):
         We retrieve lidar_pose and add_noise to it.
         And set a clean pose.
     """
-    if noise_setting['add_noise']:
+    if noise_setting['add_noise']:  # False
         for cav_id, cav_content in data_dict.items():
             cav_content['params']['lidar_pose_clean'] = cav_content['params']['lidar_pose'] # 6 dof pose
             cav_content['params']['lidar_pose'] = cav_content['params']['lidar_pose'] + \
@@ -19,6 +19,8 @@ def add_noise_data_dict(data_dict, noise_setting):
                                                     )
     else:
         for cav_id, cav_content in data_dict.items():
+            if cav_content == {}:
+                continue
             cav_content['params']['lidar_pose_clean'] = cav_content['params']['lidar_pose'] # 6 dof pose
 
             
