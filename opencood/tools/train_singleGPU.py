@@ -84,7 +84,8 @@ def main_worker(local_rank, nprocs, opt):
     else:
         if hypes['resume'] is not None:
             # model = train_utils.load_model_infra(hypes['resume'], model.module if distributed else model)   # 只加载infra端权重
-            model = train_utils.load_model_infra_veh_crhead(hypes['resume'], model.module if distributed else model)  
+            # model = train_utils.load_model_infra_veh_crhead(hypes['resume'], model.module if distributed else model)  
+            model = train_utils.load_whole_model(hypes['resume'], model.module if distributed else model) # for fine_tune
         init_epoch = 0
         # if we train the model from scratch, we need to create a folder
         # to save the model,
