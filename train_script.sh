@@ -11,4 +11,3 @@ CUDA_VISIBLE_DEVICES=2 python opencood/tools/train_singleGPU.py --hypes_yaml ope
 
 
 --model_dir opencood/logs/exp/flowPre_dair_where2comm_max_multiscale_resnet_2024_10_14_18_59_48
-

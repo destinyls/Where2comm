@@ -122,58 +122,49 @@ class IntermediateFusionDatasetDAIR(Dataset):
         
         self.infra_timestamp = load_json("infra_timestamps.json")
         self.veh_timestamp = load_json("veh_timestamps.json")
+        self.infra_id_list = list(self.infra_timestamp.keys())
         
-    def retrieve_multi_data(self, idx, select_num):
+    def retrieve_multi_data(self, idx, his_frames):
+                
+        # cur:veh + infra
+        base_data_dict, system_error_offset = self.retrieve_base_data(idx) 
         
-        if select_num == 0:  # 不需要his
-            base_data_dict, cur_timestamp = self.retrieve_base_data(idx) 
-            return [base_data_dict], [cur_timestamp]
+        if his_frames == 0: # 不需要his
+            return base_data_dict
+
+        veh_frame_id = self.split_info[idx]
+        infra_id = self.veh_infra_id_list[veh_frame_id] # infra_cur_id
+        infra_id_index = self.infra_id_list.index(infra_id)
         
-        select_dict = []
-        timestamp_list = []
-        for j in range(idx,idx-select_num-1,-1):
-            if j == idx:
-                base_data_dict, cur_timestamp = self.retrieve_base_data(j) # cur idx
-                cur_idx = self.frame_id_list.index(cur_timestamp)
-            else: # his
-                index = self.frame_id_list.index(cur_timestamp)
-                if index > 0:
-                    cur_timestamp = self.frame_id_list[index - 1] # 前一帧
-                    base_data_dict = self.retrieve_base_data_before(cur_timestamp)
-                else:
-                    # 没有前一帧 就重复有的 最靠前的那帧
-                    cur_timestamp = timestamp_list[-1] if timestamp_list else cur_timestamp 
-                    base_data_dict = select_dict[-1] if select_dict else base_data_dict
-                         
-            timestamp_list.append(cur_timestamp)
-            select_dict.append(base_data_dict)
-        
+        # his_infra_data
+        his_infra_data = []
+        infra_his_id = None
+        for i in range(his_frames):
+            infra_his_id = self.infra_id_list[infra_id_index - (i+1)] if (infra_id_index-(i+1)) > 0 else  self.infra_id_list[0]            
+            infra_data = self.retrieve_base_infra_data_hisfut(infra_his_id, system_error_offset)
+            his_infra_data.append(infra_data)
+            
+        # fut_infra_data
+        infra_fur_id = None
         if self.train_flow: 
             k = random.choice([1, 2]) 
-            fur_idx = cur_idx + k
-            self.t_cur_fut = k
+            infra_fur_id = self.infra_id_list[infra_id_index + k] if (infra_id_index+k) < len(self.infra_id_list) else self.infra_id_list[-1]
         else: # 推理时  无须加载未来帧
-            k = 0
-            fur_idx = cur_idx + k                 
+            infra_fur_id = infra_id_index               
+        fut_infra_data = self.retrieve_base_infra_data_hisfut(infra_fur_id, system_error_offset)
 
-        if fur_idx < len(self.frame_id_list):
-            fur_timestamp = self.frame_id_list[fur_idx]
-            base_data_dict = self.retrieve_base_data_before(fur_timestamp)
-        else:
-            fur_timestamp = self.frame_id_list[-1]
-            base_data_dict = self.retrieve_base_data_before(fur_timestamp)  
-
-        timestamp_list.append(fur_timestamp)
-        select_dict.append(base_data_dict)
-        
-        self.t_his_cur = ( int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[-2]]]) )  // 1000
-        self.t_cur_fut = ( int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[-1]]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) )  // 1000
+        self.t_his_cur = (int(self.infra_timestamp[infra_id])-int(self.infra_timestamp[infra_his_id])) // 1000
+        self.t_cur_fut = (int(self.infra_timestamp[infra_fur_id])-int(self.infra_timestamp[infra_id])) // 1000
         
         if self.t_his_cur == 0:
             self.t_his_cur = 100
         times = [self.t_his_cur, self.t_cur_fut]
         
-        return select_dict,timestamp_list,times
+        base_data_dict[1]['his_infra_data'] = his_infra_data
+        base_data_dict[1]['fut_infra_data'] = fut_infra_data
+        base_data_dict[1]['delta_t'] = times
+        
+        return base_data_dict
     
     def retrieve_base_data(self, idx):
         """
@@ -197,7 +188,6 @@ class IntermediateFusionDatasetDAIR(Dataset):
         data = OrderedDict()
         data[0] = OrderedDict() # veh-side
         data[0]['ego'] = True
-        data[0]['veh_frame_id'] = veh_frame_id
         data[1] = OrderedDict() # inf-side
         data[1]['ego'] = False
  
@@ -231,55 +221,15 @@ class IntermediateFusionDatasetDAIR(Dataset):
         ######################## Single View GT ########################
 
         data[1]['lidar_np'], _ = pcd_utils.read_pcd(os.path.join(self.root_dir,frame_info["infrastructure_pointcloud_path"]))
-        return data, veh_frame_id
+        return data, system_error_offset
     
-    def retrieve_base_data_before(self, cur_timestamp):
-        """
-        提取 cur_timestamp 时间戳对应的数据
-        Given the index, return the corresponding data.
-
-        Parameters
-        ----------
-        idx : int
-            Index given by dataloader.
-
-        Returns
-        -------
-        data : dict
-            The dictionary contains loaded yaml params and lidar data for
-            each cav.
-        """
-        
-        veh_frame_id = cur_timestamp
-        frame_info = self.co_data[veh_frame_id]
-        system_error_offset = frame_info["system_error_offset"]
-        data = OrderedDict()
-        data[0] = OrderedDict() # veh-side
-        data[0]['ego'] = True
-        data[0]['veh_frame_id'] = veh_frame_id
+    def retrieve_base_infra_data_hisfut(self, inf_frame_id, system_error_offset):
+        # 只需要infra的特征
+        data = OrderedDict() 
+        data[0] = OrderedDict() 
         data[1] = OrderedDict() # inf-side
         data[1]['ego'] = False
- 
-        data[0]['params'] = OrderedDict()
-        data[0]['params']['vehicles'] = load_json(os.path.join(self.root_dir, frame_info['cooperative_label_path']))
-
-        lidar_to_novatel_json_file = load_json(os.path.join(self.root_dir,'vehicle-side/calib/lidar_to_novatel/'+str(veh_frame_id)+'.json'))
-        novatel_to_world_json_file = load_json(os.path.join(self.root_dir,'vehicle-side/calib/novatel_to_world/'+str(veh_frame_id)+'.json'))
-        transformation_matrix = veh_side_rot_and_trans_to_trasnformation_matrix(lidar_to_novatel_json_file, novatel_to_world_json_file)
-        data[0]['params']['lidar_pose'] = tfm_to_pose(transformation_matrix)
-        
-        ######################## Single View GT ########################
-        vehicle_side_path = os.path.join(self.root_dir, 'vehicle-side/label/lidar/{}.json'.format(veh_frame_id))
-        data[0]['params']['vehicles_single'] = load_json(vehicle_side_path)
-        ######################## Single View GT ########################
-
-        data[0]['lidar_np'], _ = pcd_utils.read_pcd(os.path.join(self.root_dir,frame_info["vehicle_pointcloud_path"]))
-        if self.clip_pc:
-            data[0]['lidar_np'] = data[0]['lidar_np'][data[0]['lidar_np'][:,0]>0]
-
-        data[1]['params'] = OrderedDict()
-        inf_frame_id = frame_info['infrastructure_image_path'].split("/")[-1].replace(".jpg", "")
-        data[1]['params']['vehicles'] = [] # we only load cooperative once in veh-side
+        data[1]['params'] = OrderedDict() # inf-side
         virtuallidar_to_world_json_file = load_json(os.path.join(self.root_dir,'infrastructure-side/calib/virtuallidar_to_world/'+str(inf_frame_id)+'.json'))
         transformation_matrix1 = inf_side_rot_and_trans_to_trasnformation_matrix(virtuallidar_to_world_json_file,system_error_offset)
         data[1]['params']['lidar_pose'] = tfm_to_pose(transformation_matrix1)
@@ -288,8 +238,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
         infra_side_path = os.path.join(self.root_dir, 'infrastructure-side/label/virtuallidar/{}.json'.format(inf_frame_id))
         data[1]['params']['vehicles_single'] = load_json(infra_side_path)
         ######################## Single View GT ########################
-
-        data[1]['lidar_np'], _ = pcd_utils.read_pcd(os.path.join(self.root_dir,frame_info["infrastructure_pointcloud_path"]))
+        data[1]['lidar_np'], _ = pcd_utils.read_pcd(os.path.join(self.root_dir,'infrastructure-side/velodyne/'+str(inf_frame_id)+'.pcd'))
         return data
 
     def __len__(self):
@@ -331,7 +280,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
                                reference_lidar_pose, return_visible_mask=False):
         return self.post_processor.generate_object_center_dairv2x_late_fusion(cav_contents)
     
-    def get_item_single_car(self, selected_cav_base, ego_pose, ego_pose_clean, ego_keypoints, ego_allpoints, idx):
+    def get_item_single_car(self, selected_cav_base, ego_pose, ego_pose_clean):
         """
         Project the lidar and bbx to ego space first, and then do clipping.
 
@@ -387,7 +336,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
         if self.kd_flag:
             lidar_np_clean = copy.deepcopy(lidar_np)
 
-        if self.proj_first:
+        if self.proj_first: # False
             lidar_np[:, :3] = projected_lidar
             
         lidar_np = mask_points_by_range(lidar_np,
@@ -420,6 +369,27 @@ class IntermediateFusionDatasetDAIR(Dataset):
 
         return selected_cav_processed
 
+    def get_item_single_infra(self, selected_cav_base):
+
+        selected_cav_processed = {}
+
+        # filter lidar
+        lidar_np = selected_cav_base['lidar_np']
+        lidar_np = shuffle_points(lidar_np)
+        # remove points that hit itself
+        lidar_np = mask_ego_points(lidar_np)
+            
+        lidar_np = mask_points_by_range(lidar_np,
+                                        self.params['preprocess'][
+                                            'cav_lidar_range'])
+        processed_lidar = self.pre_processor.preprocess(lidar_np)
+
+        selected_cav_processed.update(
+            {
+             'processed_features': processed_lidar})
+
+        return selected_cav_processed
+    
     def augment(self, lidar_np, object_bbx_center, object_bbx_mask):
         """
         Given the raw point cloud, augment by flipping and rotation.
@@ -464,234 +434,238 @@ class IntermediateFusionDatasetDAIR(Dataset):
 
     def __getitem__(self, idx):
         
-        select_dict,timestamp_list, times = self.retrieve_multi_data(idx,self.before_frame)
+        base_data_dict = self.retrieve_multi_data(idx,self.before_frame) 
+               
+        base_data_dict = add_noise_data_dict(base_data_dict,self.params['noise_setting'])
 
-        cur_his_fur_data = []
-                
-        for i in range(len(select_dict)):
-            timestamp = timestamp_list[i]
-            base_data_dict = select_dict[i]
-            veh_frame_id = base_data_dict[0]["veh_frame_id"]
+        processed_data_dict = OrderedDict()
+        processed_data_dict['ego'] = {}
 
-            base_data_dict = add_noise_data_dict(base_data_dict,self.params['noise_setting'])
+        ego_id = -1
+        ego_lidar_pose = []
 
-            processed_data_dict = OrderedDict()
-            processed_data_dict['ego'] = {}
-
-            ego_id = -1
-            ego_lidar_pose = []
-
-            # first find the ego vehicle's lidar pose
-            for cav_id, cav_content in base_data_dict.items():
-                if cav_content['ego']:
-                    ego_id = cav_id
-                    ego_lidar_pose = cav_content['params']['lidar_pose']
-                    ego_lidar_pose_clean = cav_content['params']['lidar_pose_clean']
-                    break
-                
-            assert cav_id == list(base_data_dict.keys())[
-                0], "The first element in the OrderedDict must be ego"
-            assert ego_id != -1
-            assert len(ego_lidar_pose) > 0
-
-            processed_features = []
-            object_stack = []
-            object_id_stack = []
-            object_stack_single_v = []
-            object_id_stack_single_v = []
-            object_stack_single_i = []
-            object_id_stack_single_i = []
-            too_far = []
-            lidar_pose_list = []
-            lidar_pose_clean_list = []
-            projected_lidar_clean_list = []
-            cav_id_list = []
-
-            if self.visualize:
-                projected_lidar_stack = []
-                projected_lidar_current_stack = []
-
-            # loop over all CAVs to process information
-            for cav_id, selected_cav_base in base_data_dict.items():
-                # check if the cav is within the communication range with ego
-                # distance = \
-                #     math.sqrt((selected_cav_base['params']['lidar_pose'][0] -
-                #                ego_lidar_pose[0]) ** 2 + (
-                #                       selected_cav_base['params'][
-                #                           'lidar_pose'][1] - ego_lidar_pose[
-                #                           1]) ** 2)
-
-                # if distance is too far, we will just skip this agent
-                # if distance > self.params['comm_range']:
-                #     too_far.append(cav_id)
-                #     continue
-                # 没有检查通信距离   全特征图
-                lidar_pose_clean_list.append(selected_cav_base['params']['lidar_pose_clean'])
-                lidar_pose_list.append(selected_cav_base['params']['lidar_pose']) # 6dof pose
-                cav_id_list.append(cav_id)
-
-            for cav_id in cav_id_list:
-                selected_cav_base = base_data_dict[cav_id]
-                ego_keypoints = None
-                ego_allpoints = None
-                if self.select_keypoint:
-                    if self.proj_first and cav_id != ego_id:
-                        ego_keypoints = base_data_dict[ego_id]['lidar_keypoints_np'] # ego's keypoint 
-                    elif not self.proj_first and cav_id != ego_id:
-                        ego_allpoints = base_data_dict[ego_id]['lidar_np']
-
-                selected_cav_processed = self.get_item_single_car(
-                    selected_cav_base,
-                    ego_lidar_pose, 
-                    ego_lidar_pose_clean,
-                    ego_keypoints, 
-                    ego_allpoints,
-                    idx)
-                
-                object_stack.append(selected_cav_processed['object_bbx_center'])
-                object_id_stack += selected_cav_processed['object_ids']
-
-                ######################## Single View GT ########################
-                if cav_id == 0:
-                    object_stack_single_v.append(selected_cav_processed['object_bbx_center_single'])
-                    object_id_stack_single_v += selected_cav_processed['object_ids_single']
-                else:
-                    object_stack_single_i.append(selected_cav_processed['object_bbx_center_single'])
-                    object_id_stack_single_i += selected_cav_processed['object_ids_single']
-                ######################## Single View GT ########################
-
-                processed_features.append(
-                    selected_cav_processed['processed_features'])
-                
-                if self.kd_flag:
-                    projected_lidar_clean_list.append(
-                        selected_cav_processed['projected_lidar_clean'])
-
-                if self.visualize:
-                    projected_lidar_stack.append(
-                        selected_cav_processed['projected_lidar'])
-                    projected_lidar_current_stack.append(
-                        selected_cav_processed['projected_lidar_current'])
-
-            ########## Added by Yifan Lu 2022.4.5 ################
-            # filter those out of communicate range
-            # then we can calculate get_pairwise_transformation
-            for cav_id in too_far:
-                base_data_dict.pop(cav_id)
+        # first find the ego vehicle's lidar pose
+        for cav_id, cav_content in base_data_dict.items():
+            if cav_content['ego']:
+                ego_id = cav_id
+                ego_lidar_pose = cav_content['params']['lidar_pose']
+                ego_lidar_pose_clean = cav_content['params']['lidar_pose_clean']
+                break
             
-            pairwise_t_matrix = \
-                self.get_pairwise_transformation(base_data_dict,
-                                                self.max_cav)
+        assert cav_id == list(base_data_dict.keys())[
+            0], "The first element in the OrderedDict must be ego"
+        assert ego_id != -1
+        assert len(ego_lidar_pose) > 0
 
-            lidar_poses = np.array(lidar_pose_list).reshape(-1, 6)  # [N_cav, 6]
-            lidar_poses_clean = np.array(lidar_pose_clean_list).reshape(-1, 6)  # [N_cav, 6]
-            ######################################################
+        processed_features = []
+        object_stack = []
+        object_id_stack = []
+        object_stack_single_v = []
+        object_id_stack_single_v = []
+        object_stack_single_i = []
+        object_id_stack_single_i = []
+        too_far = []
+        lidar_pose_list = []
+        lidar_pose_clean_list = []
+        projected_lidar_clean_list = []
+        cav_id_list = []
 
-            ############ for disconet ###########
-            if self.kd_flag:
-                stack_lidar_np = np.vstack(projected_lidar_clean_list)
-                stack_lidar_np = mask_points_by_range(stack_lidar_np,
-                                            self.params['preprocess'][
-                                                'cav_lidar_range'])
-                stack_feature_processed = self.pre_processor.preprocess(stack_lidar_np)
+        if self.visualize: # False
+            projected_lidar_stack = []
+            projected_lidar_current_stack = []
 
-            object_bbx_center, mask, object_id_stack = self.get_unique_label(object_stack, object_id_stack)
+        # loop over all CAVs to process information
+        for cav_id, selected_cav_base in base_data_dict.items():
+            # check if the cav is within the communication range with ego
+            # distance = \
+            #     math.sqrt((selected_cav_base['params']['lidar_pose'][0] -
+            #                ego_lidar_pose[0]) ** 2 + (
+            #                       selected_cav_base['params'][
+            #                           'lidar_pose'][1] - ego_lidar_pose[
+            #                           1]) ** 2)
+
+            # if distance is too far, we will just skip this agent
+            # if distance > self.params['comm_range']:
+            #     too_far.append(cav_id)
+            #     continue
+            # 没有检查通信距离   全特征图
+            lidar_pose_clean_list.append(selected_cav_base['params']['lidar_pose_clean'])
+            lidar_pose_list.append(selected_cav_base['params']['lidar_pose']) # 6dof pose
+            cav_id_list.append(cav_id)
+
+        for cav_id in cav_id_list:
+            selected_cav_base = base_data_dict[cav_id]
+
+            selected_cav_processed = self.get_item_single_car(
+                selected_cav_base,
+                ego_lidar_pose, 
+                ego_lidar_pose_clean)
             
+            object_stack.append(selected_cav_processed['object_bbx_center'])
+            object_id_stack += selected_cav_processed['object_ids']
+
             ######################## Single View GT ########################
-            object_bbx_center_single_v, mask_single_v, object_id_stack_single_v = self.get_unique_label(object_stack_single_v, object_id_stack_single_v)
-            object_bbx_center_single_i, mask_single_i, object_id_stack_single_i = self.get_unique_label(object_stack_single_i, object_id_stack_single_i)
+            if cav_id == 0:
+                object_stack_single_v.append(selected_cav_processed['object_bbx_center_single'])
+                object_id_stack_single_v += selected_cav_processed['object_ids_single']
+            else:
+                object_stack_single_i.append(selected_cav_processed['object_bbx_center_single'])
+                object_id_stack_single_i += selected_cav_processed['object_ids_single']
             ######################## Single View GT ########################
 
-            # merge preprocessed features from different cavs into the same dict
-            cav_num = len(processed_features)
-            merged_feature_dict = self.merge_features_to_dict(processed_features)
-
-            # generate the anchor boxes
-            anchor_box = self.post_processor.generate_anchor_box()
-
-            # generate targets label
-            label_dict = \
-                self.post_processor.generate_label(
-                    gt_box_center=object_bbx_center,
-                    anchors=anchor_box,
-                    mask=mask)
+            processed_features.append(
+                selected_cav_processed['processed_features'])
             
-            label_dict_single_v = \
-                self.post_processor.generate_label(
-                    gt_box_center=object_bbx_center_single_v,
-                    anchors=anchor_box,
-                    mask=mask_single_v)
-            
-            label_dict_single_i = \
-                self.post_processor.generate_label(
-                    gt_box_center=object_bbx_center_single_i,
-                    anchors=anchor_box,
-                    mask=mask_single_i)
-
-            processed_data_dict['ego'].update(
-                {'object_bbx_center': object_bbx_center,
-                'object_bbx_mask': mask,
-                'object_ids': object_id_stack,
-                'label_dict': label_dict,
-                'object_bbx_center_single_v': object_bbx_center_single_v,
-                'object_bbx_mask_single_v': mask_single_v,
-                'object_ids_single_v': object_id_stack_single_v,
-                'label_dict_single_v': label_dict_single_v,
-                'object_bbx_center_single_i': object_bbx_center_single_i,
-                'object_bbx_mask_single_i': mask_single_i,
-                'object_ids_single_i': object_id_stack_single_i,
-                'label_dict_single_i': label_dict_single_i,
-                'anchor_box': anchor_box,
-                'processed_lidar': merged_feature_dict,
-                'cav_num': cav_num,
-                'pairwise_t_matrix': pairwise_t_matrix,
-                'lidar_poses_clean': lidar_poses_clean,
-                'lidar_poses': lidar_poses
-                })
-
             if self.kd_flag:
-                processed_data_dict['ego'].update({'teacher_processed_lidar':
-                    stack_feature_processed})
+                projected_lidar_clean_list.append(
+                    selected_cav_processed['projected_lidar_clean'])
 
             if self.visualize:
-                processed_data_dict['ego'].update({'origin_lidar':
-                    np.vstack(
-                        projected_lidar_stack)})
+                projected_lidar_stack.append(
+                    selected_cav_processed['projected_lidar'])
+                projected_lidar_current_stack.append(
+                    selected_cav_processed['projected_lidar_current'])
 
-                processed_data_dict['ego'].update({'origin_lidar_v':
-                        projected_lidar_stack[0]})
-                processed_data_dict['ego'].update({'origin_lidar_i':
-                        projected_lidar_stack[1]})
-                processed_data_dict['ego'].update({'origin_lidar_i_infra':
-                        projected_lidar_current_stack[1]})
-
-            processed_data_dict['ego'].update({'sample_idx': veh_frame_id, 'cav_id_list': cav_id_list})
-            cur_his_fur_data.append((timestamp,processed_data_dict))
+        ########## Added by Yifan Lu 2022.4.5 ################
+        # filter those out of communicate range
+        # then we can calculate get_pairwise_transformation
+        for cav_id in too_far:
+            base_data_dict.pop(cav_id)
         
-        return cur_his_fur_data, times
+        pairwise_t_matrix = \
+            self.get_pairwise_transformation(base_data_dict,
+                                            self.max_cav)
+
+        lidar_poses = np.array(lidar_pose_list).reshape(-1, 6)  # [N_cav, 6]
+        lidar_poses_clean = np.array(lidar_pose_clean_list).reshape(-1, 6)  # [N_cav, 6]
+        ######################################################
+
+        ############ for disconet ###########
+        if self.kd_flag:
+            stack_lidar_np = np.vstack(projected_lidar_clean_list)
+            stack_lidar_np = mask_points_by_range(stack_lidar_np,
+                                        self.params['preprocess'][
+                                            'cav_lidar_range'])
+            stack_feature_processed = self.pre_processor.preprocess(stack_lidar_np)
+
+        object_bbx_center, mask, object_id_stack = self.get_unique_label(object_stack, object_id_stack)
+        
+        ######################## Single View GT ########################
+        object_bbx_center_single_v, mask_single_v, object_id_stack_single_v = self.get_unique_label(object_stack_single_v, object_id_stack_single_v)
+        object_bbx_center_single_i, mask_single_i, object_id_stack_single_i = self.get_unique_label(object_stack_single_i, object_id_stack_single_i)
+        ######################## Single View GT ########################
+
+        # merge preprocessed features from different cavs into the same dict
+        cav_num = len(processed_features)
+        merged_feature_dict = self.merge_features_to_dict(processed_features)
+
+        # generate the anchor boxes
+        anchor_box = self.post_processor.generate_anchor_box()
+
+        # generate targets label
+        label_dict = \
+            self.post_processor.generate_label(
+                gt_box_center=object_bbx_center,
+                anchors=anchor_box,
+                mask=mask)
+        
+        label_dict_single_v = \
+            self.post_processor.generate_label(
+                gt_box_center=object_bbx_center_single_v,
+                anchors=anchor_box,
+                mask=mask_single_v)
+        
+        label_dict_single_i = \
+            self.post_processor.generate_label(
+                gt_box_center=object_bbx_center_single_i,
+                anchors=anchor_box,
+                mask=mask_single_i)
+
+        processed_data_dict['ego'].update(
+            {'object_bbx_center': object_bbx_center,
+            'object_bbx_mask': mask,
+            'object_ids': object_id_stack,
+            'label_dict': label_dict,
+            'object_bbx_center_single_v': object_bbx_center_single_v,
+            'object_bbx_mask_single_v': mask_single_v,
+            'object_ids_single_v': object_id_stack_single_v,
+            'label_dict_single_v': label_dict_single_v,
+            'object_bbx_center_single_i': object_bbx_center_single_i,
+            'object_bbx_mask_single_i': mask_single_i,
+            'object_ids_single_i': object_id_stack_single_i,
+            'label_dict_single_i': label_dict_single_i,
+            'anchor_box': anchor_box,
+            'processed_lidar': merged_feature_dict,
+            'cav_num': cav_num,
+            'pairwise_t_matrix': pairwise_t_matrix,
+            'lidar_poses_clean': lidar_poses_clean,
+            'lidar_poses': lidar_poses
+            })
+
+        if self.kd_flag:
+            processed_data_dict['ego'].update({'teacher_processed_lidar':
+                stack_feature_processed})
+
+        if self.visualize:
+            processed_data_dict['ego'].update({'origin_lidar':
+                np.vstack(
+                    projected_lidar_stack)})
+
+            processed_data_dict['ego'].update({'origin_lidar_v':
+                    projected_lidar_stack[0]})
+            processed_data_dict['ego'].update({'origin_lidar_i':
+                    projected_lidar_stack[1]})
+            processed_data_dict['ego'].update({'origin_lidar_i_infra':
+                    projected_lidar_current_stack[1]})
+        
+        his_infra_data_fea = []
+        for his_infra_d in base_data_dict[1]['his_infra_data']:
+            his_infra_data_fea.append(self.infra_get_item(his_infra_d))
+            
+        fut_infra_data_fea = self.infra_get_item(base_data_dict[1]['fut_infra_data'])
+        
+        processed_data_dict['ego']['his_infra_data_fea'] = his_infra_data_fea
+        processed_data_dict['ego']['fut_infra_data_fea'] = fut_infra_data_fea
+        processed_data_dict['ego']['times'] = base_data_dict[1]['delta_t'] 
+        
+        return processed_data_dict
+
+    def infra_get_item(self, base_data_dict):
+           
+        base_data_dict = add_noise_data_dict(base_data_dict,self.params['noise_setting'])
+
+        processed_data_dict = OrderedDict()
+        processed_data_dict['ego'] = {}
+
+        processed_features = []
+
+        selected_cav_base = base_data_dict[1]
+
+        selected_cav_processed = self.get_item_single_infra(
+            selected_cav_base)
+    
+        processed_features.append(
+            selected_cav_processed['processed_features'])
+
+        # merge preprocessed features from different cavs into the same dict
+        cav_num = len(processed_features)  # cav 1
+        merged_feature_dict = self.merge_features_to_dict(processed_features)
+
+        processed_data_dict['ego'].update(
+            {
+            'processed_lidar': merged_feature_dict,
+            'cav_num': cav_num
+            })
+        
+        return processed_data_dict
     
     def collate_batch_train(self, batch):
     
-        cur_batch = [b[0][0] for b in batch]
-        times = [b[1] for b in batch]
-        cur_output_dict = self.collate_batch_train_single_timestamp(cur_batch)
+        cur_batch = [b for b in batch]
+        output_dict = self.collate_batch_train_single_timestamp(cur_batch)
+        output_dict['ego']['delta_times'] = [b['ego']['times'] for b in batch]
         
-        fur_batch = [b[0][-1] for b in batch]
-        fur_output_dict = [self.collate_batch_train_single_timestamp(fur_batch)]
-        
-        his_batch = []
-        his_output_dict = []
-        for i in range(1,len(batch[0][0])-1):
-            his_batch.append([b[0][i] for b in batch])
-        
-        for his_data in his_batch:
-            his_output_dict.append(self.collate_batch_train_single_timestamp(his_data))
-        
-        if self.his_flag:   
-            cur_output_dict['ego'].update({'his_data_info': his_output_dict})
-            cur_output_dict['ego'].update({'fur_data_info': fur_output_dict})
-
-        return [cur_output_dict, times]
+        return output_dict
 
     def collate_batch_train_single_timestamp(self, batch):
         # Intermediate fusion is different the other two
@@ -720,8 +694,6 @@ class IntermediateFusionDatasetDAIR(Dataset):
         record_len = []
         lidar_pose_list = []
         lidar_pose_clean_list = []
-
-        sample_idx_list = []
         
         # pairwise transformation matrix
         pairwise_t_matrix_list = []
@@ -735,7 +707,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
             origin_lidar_i_infra = []
 
         for i in range(len(batch)):
-            ego_dict = batch[i][1]['ego'] # 0 timestamp
+            ego_dict = batch[i]['ego']
             object_bbx_center.append(ego_dict['object_bbx_center'])
             object_bbx_mask.append(ego_dict['object_bbx_mask'])
             object_ids.append(ego_dict['object_ids'])
@@ -760,7 +732,6 @@ class IntermediateFusionDatasetDAIR(Dataset):
             processed_lidar_list.append(ego_dict['processed_lidar']) # different cav_num, ego_dict['processed_lidar'] is list.
             record_len.append(ego_dict['cav_num'])
             pairwise_t_matrix_list.append(ego_dict['pairwise_t_matrix'])
-            sample_idx_list.append(int(ego_dict['sample_idx']))
 
             if self.kd_flag:
                 teacher_processed_lidar_list.append(ego_dict['teacher_processed_lidar'])
@@ -805,7 +776,6 @@ class IntermediateFusionDatasetDAIR(Dataset):
         # (B, max_cav)
         pairwise_t_matrix = torch.from_numpy(np.array(pairwise_t_matrix_list).astype(np.float32))
         anchor_box = torch.from_numpy(np.array(anchor_box_list))
-        sample_idx = torch.from_numpy(np.array(sample_idx_list))
 
         # add pairwise_t_matrix to label dict
         label_torch_dict['pairwise_t_matrix'] = pairwise_t_matrix
@@ -838,8 +808,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
                                    'pairwise_t_matrix': pairwise_t_matrix,
                                    'anchor_box': anchor_box,
                                    'lidar_pose_clean': lidar_pose_clean,
-                                   'lidar_pose': lidar_pose,
-                                   'sample_idx': sample_idx})
+                                   'lidar_pose': lidar_pose})
 
         if self.visualize:
             origin_lidar = \
@@ -870,6 +839,52 @@ class IntermediateFusionDatasetDAIR(Dataset):
         if self.params['preprocess']['core_method'] == 'SpVoxelPreprocessor' and \
             (output_dict['ego']['processed_lidar']['voxel_coords'][:, 0].max().int().item() + 1) != record_len.sum().int().item():
             return None
+        
+        if not self.his_flag:
+            return output_dict
+        
+        # fut
+        fur_batch = [b['ego']['fut_infra_data_fea'] for b in batch]
+        fur_dict = self.collate_batch_train_single_timestamp_only_infra(fur_batch)
+        
+        # his
+        his_dict = {}
+        for i in range(self.before_frame):     
+            his_batch = [b['ego']['his_infra_data_fea'][i] for b in batch]
+            his_dict[i] = self.collate_batch_train_single_timestamp_only_infra(his_batch)
+
+        output_dict['ego']['fur_infra_dict'] = fur_dict
+        output_dict['ego']['his_infra_dict'] = his_dict
+        
+        return output_dict
+
+    def collate_batch_train_single_timestamp_only_infra(self, batch):
+        # Intermediate fusion is different the other two
+        output_dict = {'ego': {}}     
+         
+        processed_lidar_list = []
+        # used to record different scenario
+        record_len = []
+        
+        for i in range(len(batch)):
+            ego_dict = batch[i]['ego'] 
+            processed_lidar_list.append(ego_dict['processed_lidar']) # different cav_num, ego_dict['processed_lidar'] is list.
+            record_len.append(ego_dict['cav_num'])
+
+        # example: {'voxel_features':[np.array([1,2,3]]),
+        # np.array([3,5,6]), ...]}
+        merged_feature_dict = self.merge_features_to_dict(processed_lidar_list)
+
+        # [sum(record_len), C, H, W]
+        processed_lidar_torch_dict = \
+            self.pre_processor.collate_batch(merged_feature_dict)
+        # [2, 3, 4, ..., M], M <= max_cav
+        record_len = torch.from_numpy(np.array(record_len, dtype=int))
+
+        # object id is only used during inference, where batch size is 1.
+        # so here we only get the first element.
+        output_dict['ego'].update({'processed_lidar': processed_lidar_torch_dict,
+                                   'record_len': record_len})
         
         return output_dict
     
@@ -902,11 +917,6 @@ class IntermediateFusionDatasetDAIR(Dataset):
                                        transformation_matrix_torch_10,
                                     'transformation_matrix_clean':
                                        transformation_matrix_clean_torch,})
-
-        output_dict['ego'].update({
-            "sample_idx": batch[0][0][0][1]['ego']['sample_idx'],
-            "cav_id_list": batch[0][0][0][1]['ego']['cav_id_list']
-        })
 
         return [output_dict, times]
 

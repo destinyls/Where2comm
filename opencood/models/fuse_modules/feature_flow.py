@@ -284,22 +284,10 @@ class FlowGenerator(nn.Module):
         final_list = []
         for bs in range(len(feat_list)): 
             t_his_cur, t_cur_fut = times[bs][0], times[bs][1]
-            
-            time_list = feat_list[bs] # timestamp cur 015550 his[015548 015547 015546]  fut 015560
-            cur_timestamp = time_list[0]
-            his_timestamps = time_list[1] 
-            fut_timestamp = time_list[2]
+            time_list = feat_list[bs]
+            colla_feat = torch.cat(time_list).unsqueeze(0)
 
-            new_time_list = [his_timestamps] + [cur_timestamp] + [fut_timestamp] # his[015548 015547 015546] cur 015550 fut 015560
-              
-            his_frames = his_timestamps.shape[1] // self.channel
-            his_list = [his_timestamps[:, i*self.channel:(i+1)*self.channel, :, :] for i in range(his_frames)]
-            his_list.reverse()  
-            new_time_list[0] = torch.cat(his_list, dim=1) # his[015546 015547 015548]
-            
-            fusion_feature = torch.cat(new_time_list, dim=1) # concatenate in channel    015546 015547 015548 015550 015560
-
-            colla_feat = fusion_feature[1].unsqueeze(0)  # infra_feature  
+            his_frames = time_list[0].shape[0] // self.channel
             
             feat = colla_feat[:, 0*self.channel:(0+2)*self.channel, :, :]
             colla_fusion = self.backbone(feat) 
@@ -312,11 +300,8 @@ class FlowGenerator(nn.Module):
                     off, scale = self.pre_encoder(colla_fusion) 
                     offset += off
             
-            feat_source = colla_feat[:, -self.channel*2:-self.channel, :, :]  # cur 015550
-            feat_target = colla_feat[:, -self.channel:, :, :] # fut  015560
-
-            # offset, scale = self.pre_encoder(colla_fusion)  # 估计 offset scale
-            # feat_estimate_target = self.flow_warp_feats(feat_source, offset) 
+            feat_source = colla_feat[:, -self.channel*2:-self.channel, :, :]  # cur
+            feat_target = colla_feat[:, -self.channel:, :, :] # fut
             
             predict_offset = offset * (t_cur_fut / t_his_cur)
             feat_estimate_target = self.flow_warp_feats(feat_source, predict_offset)      

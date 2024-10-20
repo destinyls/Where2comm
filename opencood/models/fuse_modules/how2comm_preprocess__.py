@@ -9,6 +9,11 @@ class How2commPreprocess(nn.Module):
         super(How2commPreprocess, self).__init__()
         self.flow = FlowGenerator(args)
 
+    def regroup(self, x, record_len):
+        cum_sum_len = torch.cumsum(record_len, dim=0)
+        split_x = torch.tensor_split(x, cum_sum_len[:-1].cpu())
+        return split_x
+
     def get_grid(self, flow):
         m, n = flow.shape[-2:]
         shifts_x = torch.arange(
@@ -32,14 +37,24 @@ class How2commPreprocess(nn.Module):
 
         return warped_feats
 
-    def forward(self, feat_curr, feat_history, feat_future, time):
+    def forward(self, feat_curr, feat_history, feat_future, record_len, time):
         
-        feat_history.reverse()
+        feat_curr = self.regroup(feat_curr, record_len)
+        feat_history = [self.regroup(feat_hist, record_len) for feat_hist in feat_history]
+        feat_future = self.regroup(feat_future[0], record_len)
         
         B = len(feat_curr)
         feat_list = [[] for _ in range(B)]
         feat_history_list = [[] for _ in range(B)]
-
+        
+        for _, feat_hist in enumerate(feat_history):  # feat_history dim: timestamps, batch_size, [cav, feature_channel, ..., ...]
+            for i in range(B):  
+                if len(feat_history_list[i]) > 0:
+                    feat_history_list[i] = torch.cat((feat_history_list[i], feat_hist[i]), dim=1)
+                else:
+                    feat_history_list[i] = feat_hist[i] 
+        # feat_history_list dim: batch_size, [cav, feature_channel*timestamps, ..., ...]
+        
         for bs in range(B):
             feat_list[bs] += [feat_curr[bs], feat_history_list[bs], feat_future[bs]]
         # feat_list dim : batch_size, 2(cur, his)  对应的 timestamp eg. cur 015550  his[015548  015547 015546], fut 015560 [cav, feature_ch, ..., ...]

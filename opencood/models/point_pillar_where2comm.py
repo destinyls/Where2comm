@@ -120,6 +120,7 @@ class PointPillarWhere2comm(nn.Module):
             
         if args['fusion_args']["para"]["his_flag"]:
             self.his_flag = True
+            self.before_frame = args['fusion_args']["para"]['before_frame']
         else:
             self.his_flag = False
 
@@ -174,7 +175,7 @@ class PointPillarWhere2comm(nn.Module):
                         'record_len': record_len}
         return batch_dict_v, batch_dict_i
 
-    def forward(self, data_dict, dataset, time):
+    def forward(self, data_dict, dataset):
         voxel_features = data_dict['processed_lidar']['voxel_features']
         voxel_coords = data_dict['processed_lidar']['voxel_coords']
         voxel_num_points = data_dict['processed_lidar']['voxel_num_points']
@@ -182,7 +183,6 @@ class PointPillarWhere2comm(nn.Module):
         pairwise_t_matrix = data_dict['pairwise_t_matrix']
 
         anchor_box = data_dict['anchor_box']
-        sample_idx = data_dict['sample_idx']
         if 'origin_lidar' in data_dict.keys():
             origin_lidar = data_dict['origin_lidar']
             origin_lidar_i_infra = data_dict['origin_lidar_i_infra']
@@ -206,8 +206,7 @@ class PointPillarWhere2comm(nn.Module):
             middle_output_dict_list.append(middle_output_dict)
             middle_data_dict = {'transformation_matrix': pairwise_t_matrix[i][0,0],
                                 'transformation_matrix_10': pairwise_t_matrix[i][0,0],
-                                'anchor_box': anchor_box[i],
-                                'sample_idx': sample_idx[i]
+                                'anchor_box': anchor_box[i]
                                 }
 
             if 'origin_lidar' in data_dict.keys():
@@ -229,13 +228,18 @@ class PointPillarWhere2comm(nn.Module):
         spatial_features = torch.stack(spatial_features, dim=0)
         spatial_features_2d = torch.stack(spatial_features_2d, dim=0)
         
+        times = None
+        his_spatial_features, his_spatial_features_2d = [], []
+        fur_spatial_features, fur_spatial_features_2d = [], []
+        
         # process history data
         if self.his_flag:
-            his_spatial_features, his_spatial_features_2d = self.pro_his_data(data_dict['his_data_info'])
-            fur_spatial_features, fur_spatial_features_2d = self.pro_his_data(data_dict['fur_data_info'])
-        else:
-            his_spatial_features, his_spatial_features_2d = [], []
-            fur_spatial_features, fur_spatial_features_2d = [], []
+            fur_spatial_features, fur_spatial_features_2d = self.pro_his_data(data_dict['fur_infra_dict'])
+            for i in range(self.before_frame):
+                his_spatial_features_i, his_spatial_features_2d_i = self.pro_his_data(data_dict['his_infra_dict'][i])
+                his_spatial_features.append(his_spatial_features_i)
+                his_spatial_features_2d.append(his_spatial_features_2d_i)
+            times = data_dict['delta_times']
         
         if self.multi_scale: # True
             fused_feature, communication_rates, result_dict, loss_mae, loss_offset, loss_align = self.fusion_net(spatial_features,
@@ -245,7 +249,7 @@ class PointPillarWhere2comm(nn.Module):
                                             dataset, middle_data_dict_list, middle_output_dict_list,
                                             self.model_vehicle.backbone,
                                             [self.model_vehicle.shrink_conv, self.cls_head, self.reg_head],
-                                            his_spatial_features, fur_spatial_features, time)
+                                            his_spatial_features, fur_spatial_features, times)
             # downsample feature to reduce memory
             if self.shrink_flag:
                 fused_feature = self.model_vehicle.shrink_conv(fused_feature)
@@ -255,7 +259,7 @@ class PointPillarWhere2comm(nn.Module):
                                             record_len,
                                             pairwise_t_matrix,
                                             dataset, middle_data_dict_list, middle_output_dict_list,
-                                            his_spatial_features_2d, fur_spatial_features_2d, time)
+                                            his_spatial_features_2d, fur_spatial_features_2d, times)
             
         psm = self.cls_head(fused_feature)   
         rm = self.reg_head(fused_feature)   
@@ -273,39 +277,24 @@ class PointPillarWhere2comm(nn.Module):
         output_dict.update(result_dict)
         return output_dict
     
-    def pro_his_data(self, his_data):
+    def pro_his_data(self, his_infra_data):
         
-        his_spatial_features = []
-        his_spatial_features_2d = []
+        batch_dict_i = {}
+        batch_dict_i['voxel_features'] = his_infra_data['ego']['processed_lidar']['voxel_features'] 
+        batch_dict_i['voxel_coords'] = his_infra_data['ego']['processed_lidar']['voxel_coords'] 
+        batch_dict_i['voxel_num_points'] = his_infra_data['ego']['processed_lidar']['voxel_num_points'] 
+        batch_dict_i['record'] = his_infra_data['ego']['record_len']
         
-        for data_dict in his_data:
-            data_dict = data_dict['ego']
-            voxel_features = data_dict['processed_lidar']['voxel_features']
-            voxel_coords = data_dict['processed_lidar']['voxel_coords']
-            voxel_num_points = data_dict['processed_lidar']['voxel_num_points']
-            record_len = data_dict['record_len']
+        _, _, spatial_features_i, spatial_features_2d_i= self.model_infra(batch_dict_i)
 
-            batch_dict_v, batch_dict_i = self.split_data(voxel_features, voxel_coords, voxel_num_points, record_len)
-            psm_single_v, rm_single_v, spatial_features_v, spatial_features_2d_v = self.model_vehicle(batch_dict_v)
-            psm_single_i, rm_single_i, spatial_features_i, spatial_features_2d_i= self.model_infra(batch_dict_i)
-
-            psm_single, spatial_features, spatial_features_2d = [], [], []
-            for i in range(psm_single_v.shape[0]):  # batch_size
-                psm_single.append(psm_single_v[i, :, :, :])
-                psm_single.append(psm_single_i[i, :, :, :])
-            for i in range(spatial_features_v.shape[0]):
-                spatial_features.append(spatial_features_v[i, :, :, :])
-                spatial_features.append(spatial_features_i[i, :, :, :])
-            for i in range(spatial_features_2d_v.shape[0]):
-                spatial_features_2d.append(spatial_features_2d_v[i, :, :, :])
-                spatial_features_2d.append(spatial_features_2d_i[i, :, :, :])
-            psm_single = torch.stack(psm_single, dim=0)
-            spatial_features = torch.stack(spatial_features, dim=0)
-            spatial_features_2d = torch.stack(spatial_features_2d, dim=0)
+        spatial_features, spatial_features_2d = [], []
+        for i in range(spatial_features_i.shape[0]):
+            spatial_features.append(spatial_features_i[i, :, :, :])
+        for i in range(spatial_features_2d_i.shape[0]):
+            spatial_features_2d.append(spatial_features_2d_i[i, :, :, :])
+        spatial_features = torch.stack(spatial_features, dim=0)
+        spatial_features_2d = torch.stack(spatial_features_2d, dim=0)
         
-            his_spatial_features.append(spatial_features)
-            his_spatial_features_2d.append(spatial_features_2d)
-        
-        return his_spatial_features, his_spatial_features_2d
+        return spatial_features, spatial_features_2d
     
     

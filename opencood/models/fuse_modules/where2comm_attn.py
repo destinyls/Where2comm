@@ -285,7 +285,8 @@ class Where2comm(nn.Module):
         pairwise_t_matrix[...,1,2] = pairwise_t_matrix[...,1,2] / (self.downsample_rate * self.discrete_ratio * H) * 2
 
         if his_features != [] and fur_features != []: # flow_pre
-            infra_predict_feature, loss_offset = self.how2comm(x, his_features, fur_features, record_len, time) 
+            cur_feature = torch.stack([fea[1] for fea in self.regroup(x, record_len)])
+            infra_predict_feature, loss_offset = self.how2comm(cur_feature, his_features, fur_features, time) 
         else:
             loss_offset = None
               
