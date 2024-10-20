@@ -29,15 +29,6 @@ from opencood.utils.transformation_utils import inf_side_rot_and_trans_to_trasnf
 import copy
 import random
 import re
-
-def extract_ms_and_divide(filename):
-    match = re.search(r'_(\d+)ms\.json$', filename)
-    if match:
-        ms_value = int(match.group(1)) 
-        result = ms_value / 100
-        return result
-    else:
-        raise ValueError("Filename format is incorrect.")
     
 def load_json(path):
     with open(path, mode="r") as f:
@@ -121,9 +112,6 @@ class IntermediateFusionDatasetDAIR(Dataset):
             self.veh_infra_id_list[veh_frame_id] = infra_frame_id
         self.frame_id_list = sorted(self.frame_id_list)
         
-        self.t_cur_fut = extract_ms_and_divide(path_name)
-        self.t_his_cur = self.before_frame
-        
         self.infra_timestamp = load_json("infra_timestamps.json")
         self.veh_timestamp = load_json("veh_timestamps.json")
         
@@ -174,6 +162,8 @@ class IntermediateFusionDatasetDAIR(Dataset):
         
         # 都是用infra_timestamp计算
         self.t_his_cur = ( int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[-2]]]) )  // 1000
+        
+        # train flow_predict模块
         # self.t_cur_fut = ( int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[-1]]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) )  // 1000
         
         # inference
