@@ -84,8 +84,8 @@ def main_worker(local_rank, nprocs, opt):
     else:
         if hypes['resume'] is not None:
             # model = train_utils.load_model_infra(hypes['resume'], model.module if distributed else model)   # 只加载infra端权重
-            # model = train_utils.load_model_infra_veh_crhead(hypes['resume'], model.module if distributed else model)  # load infra veh head  for train_Flow_predict
-            model = train_utils.load_whole_model(hypes['resume'], model.module if distributed else model)   # load whole for finetune_Head
+            model = train_utils.load_model_infra_veh_crhead(hypes['resume'], model.module if distributed else model)  # load infra veh head  for train_Flow_predict
+            # model = train_utils.load_whole_model(hypes['resume'], model.module if distributed else model)   # load whole for finetune_Head
         init_epoch = 0
         # if we train the model from scratch, we need to create a folder
         # to save the model,
@@ -172,7 +172,7 @@ def main_worker(local_rank, nprocs, opt):
 
             torch.cuda.empty_cache()
 
-        if epoch % hypes['train_params']['save_freq'] == 0 and local_rank == 0 and epoch > 5: # 20
+        if epoch % hypes['train_params']['save_freq'] == 0 and local_rank == 0 and epoch > 10: # 20
             torch.save(model.state_dict(),
                        os.path.join(saved_path,
                                     'net_epoch%d.pth' % (epoch + 1)))

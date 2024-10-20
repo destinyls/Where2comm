@@ -19,7 +19,7 @@ noise_setting:
 yaml_parser: "load_point_pillar_params"
 train_params:
   batch_size: &batch_size 2  # 6
-  epoches: 30
+  epoches: 40
   eval_freq: 2  
   save_freq: 2 
   max_cav: &max_cav 2
@@ -85,7 +85,9 @@ model:
     compression: 0 # compression rate
     vehicle_fix: true
     infra_fix: true
-    head_fix: true
+    head_fix: false
+    fuse_fix: false
+
 
     pillar_vfe:
       use_norm: true

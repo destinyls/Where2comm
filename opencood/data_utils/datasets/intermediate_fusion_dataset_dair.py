@@ -141,9 +141,9 @@ class IntermediateFusionDatasetDAIR(Dataset):
             select_dict.append(base_data_dict)
         
         if self.train_flow: 
-            # k = random.choice([1, 2])  
+            k = random.choice([1, 2])  
             # finetune
-            k = 0
+            # k = 0
             fur_idx = cur_idx + k
             self.t_cur_fut = k
         else: # 推理时  无须加载未来帧
@@ -164,13 +164,13 @@ class IntermediateFusionDatasetDAIR(Dataset):
         self.t_his_cur = ( int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[-2]]]) )  // 1000
         
         # train flow_predict模块
-        # self.t_cur_fut = ( int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[-1]]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) )  // 1000
+        self.t_cur_fut = ( int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[-1]]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) )  // 1000
         
         # inference
         # self.t_cur_fut = self.predict_delay
         
         # fine_tune  head
-        self.t_cur_fut = ( int(self.veh_timestamp[timestamp_list[-1]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) )  // 1000
+        # self.t_cur_fut = ( int(self.veh_timestamp[timestamp_list[-1]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) )  // 1000
         
         if self.t_his_cur == 0:
             self.t_his_cur = 100
