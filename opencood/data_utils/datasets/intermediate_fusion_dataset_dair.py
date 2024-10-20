@@ -167,10 +167,10 @@ class IntermediateFusionDatasetDAIR(Dataset):
         # self.t_cur_fut = ( int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[-1]]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) )  // 1000
         
         # inference
-        self.t_cur_fut = self.predict_delay
+        # self.t_cur_fut = self.predict_delay
         
         # fine_tune  head
-        # self.t_cur_fut = ( int(self.veh_timestamp[timestamp_list[-1]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) )  // 1000
+        self.t_cur_fut = ( int(self.veh_timestamp[timestamp_list[-1]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) )  // 1000
         
         if self.t_his_cur == 0:
             self.t_his_cur = 100
