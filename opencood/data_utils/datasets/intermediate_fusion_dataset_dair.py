@@ -99,6 +99,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
             self.predict_delay = int(re.search(r'(\d+)ms', path_name).group(1)) if re.search(r'(\d+)ms', path_name) else None
         else:
             path_name = 'cooperative/data_info_delay_0ms.json'
+            # path_name = 'cooperative/data_info_delay_100ms.json'
         co_datainfo = load_json(os.path.join(self.root_dir, path_name))
         
         self.co_data = OrderedDict()
@@ -141,9 +142,9 @@ class IntermediateFusionDatasetDAIR(Dataset):
             select_dict.append(base_data_dict)
         
         if self.train_flow: 
-            # k = random.choice([1, 2])  
-            # finetune
-            k = 0
+            k = random.choice([1, 2])  
+            # finetune  用0ms  100ms
+            # k = 0  
             fur_idx = cur_idx + k
             self.t_cur_fut = k
         else: # 推理时  无须加载未来帧
@@ -161,16 +162,20 @@ class IntermediateFusionDatasetDAIR(Dataset):
         select_dict.append(base_data_dict)
         
         # 都是用infra_timestamp计算
-        self.t_his_cur = ( int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[-2]]]) )  // 1000
+        # self.t_his_cur = ( int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[-2]]]) )  // 1000
         
         # train flow_predict模块
         # self.t_cur_fut = ( int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[-1]]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) )  // 1000
         
         # inference
-        # self.t_cur_fut = self.predict_delay
+        # self.t_cur_fut = self.predict_delay // 100
         
         # fine_tune  head
-        self.t_cur_fut = ( int(self.veh_timestamp[timestamp_list[-1]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) )  // 1000
+        # self.t_cur_fut = ( int(self.veh_timestamp[timestamp_list[-1]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) )  // 1000
+        
+        # 粗时延 fine
+        self.t_his_cur = self.before_frame  # 用历史1帧   100ms
+        self.t_cur_fut = k # 预测1帧 100ms 
         
         if self.t_his_cur == 0:
             self.t_his_cur = 100

@@ -9,7 +9,7 @@ import time
 import datetime
 import random
 import warnings
-import statistics
+import json
 
 import torch
 from torch.utils.data import DataLoader, Subset
@@ -48,11 +48,10 @@ def main_worker(local_rank, nprocs, opt):
 
     print('Dataset Building')
     opencood_train_dataset = build_dataset(hypes, visualize=False, train=True)
-    opencood_validate_dataset = build_dataset(hypes,visualize=False, train=False)
     
     bs = int(hypes['train_params']['batch_size'] / 1)
     distributed = False
-    train_sampler, val_sampler = None, None
+    train_sampler  = None 
         
     train_loader = DataLoader(opencood_train_dataset,
                               batch_size=bs,
@@ -62,14 +61,6 @@ def main_worker(local_rank, nprocs, opt):
                               pin_memory=True,
                               drop_last=True,
                               sampler=train_sampler)
-    val_loader = DataLoader(opencood_validate_dataset,
-                            batch_size=bs,
-                            num_workers=8,
-                            collate_fn=opencood_train_dataset.collate_batch_train,
-                            # shuffle=True,
-                            pin_memory=True,
-                            drop_last=True,
-                            sampler=val_sampler)        
 
     # define the loss
     criterion = train_utils.create_loss(hypes)
@@ -84,8 +75,8 @@ def main_worker(local_rank, nprocs, opt):
     else:
         if hypes['resume'] is not None:
             # model = train_utils.load_model_infra(hypes['resume'], model.module if distributed else model)   # 只加载infra端权重
-            # model = train_utils.load_model_infra_veh_crhead(hypes['resume'], model.module if distributed else model)  # load infra veh head  for train_Flow_predict
-            model = train_utils.load_whole_model(hypes['resume'], model.module if distributed else model)   # load whole for finetune_Head
+            model = train_utils.load_model_infra_veh_crhead(hypes['resume'], model.module if distributed else model)  # load infra veh head  for train_Flow_predict
+            # model = train_utils.load_whole_model(hypes['resume'], model.module if distributed else model)   # load whole for finetune_Head
         init_epoch = 0
         # if we train the model from scratch, we need to create a folder
         # to save the model,
@@ -98,6 +89,7 @@ def main_worker(local_rank, nprocs, opt):
 
     print('Training start')
     epoches = hypes['train_params']['epoches']
+      
     # used to help schedule learning rate
     with_round_loss = False
     mean_batch_time = 0.0
@@ -166,18 +158,26 @@ def main_worker(local_rank, nprocs, opt):
                 eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
                 criterion.logging(epoch, i, len(train_loader), eta_string, writer, nprocs)
 
+            if loss_offset is not None:
+                with open('offset_losses.json', 'r') as f:
+                    data = json.load(f)
+                with open('offset_losses.json', 'w') as f:
+                    data.append(loss_offset[0].item())
+                    json.dump(data, f, indent=4)
+                    
             # back-propagation
             final_loss.backward()
             optimizer.step()
 
             torch.cuda.empty_cache()
 
-        if epoch % hypes['train_params']['save_freq'] == 0 and local_rank == 0 and epoch > 10: # 20
+        if epoch % hypes['train_params']['save_freq'] == 0 and local_rank == 0 and epoch > 5: 
             torch.save(model.state_dict(),
                        os.path.join(saved_path,
                                     'net_epoch%d.pth' % (epoch + 1)))
         scheduler.step(epoch)
 
+    f.close()
     print('Training Finished, checkpoints saved to %s' % saved_path)
     torch.cuda.empty_cache()
     run_test = False

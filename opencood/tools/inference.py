@@ -249,7 +249,7 @@ def inference_status(agent_staus, delay):
     if torch.cuda.is_available():
         model.cuda()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    eval_epochs = [29]
+    eval_epochs = [15,17]
     for model_name in os.listdir(opt.model_dir):
         if ".pth" not in model_name: continue
         epoch_id = int(model_name.split('.')[0][9:])

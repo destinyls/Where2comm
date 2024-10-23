@@ -318,7 +318,7 @@ class FlowGenerator(nn.Module):
             if t_cur_fut != 0:
                 predict_offset = offset * (t_cur_fut / t_his_cur)
                 feat_estimate_target = self.flow_warp_feats(feat_source, predict_offset)      
-                feat_estimate_target = feat_estimate_target * scale   # Z^t_j predicted collaborator feature
+                feat_estimate_target = feat_estimate_target * scale  # Z^t_j predicted collaborator feature
             else:
                 feat_estimate_target = feat_source
 
