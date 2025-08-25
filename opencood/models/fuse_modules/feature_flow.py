@@ -312,9 +312,6 @@ class FlowGenerator(nn.Module):
             feat_source = colla_feat[:, -self.channel*2:-self.channel, :, :]  # cur 015550
             feat_target = colla_feat[:, -self.channel:, :, :] # fut  015560
 
-            # offset, scale = self.pre_encoder(colla_fusion)  # 估计 offset scale
-            # feat_estimate_target = self.flow_warp_feats(feat_source, offset) 
-
             if t_cur_fut != 0:
                 predict_offset = offset * (t_cur_fut / t_his_cur)
                 feat_estimate_target = self.flow_warp_feats(feat_source, predict_offset)      

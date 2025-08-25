@@ -94,12 +94,11 @@ class IntermediateFusionDatasetDAIR(Dataset):
         self.root_dir = params['data_dir']
         self.split_info = load_json(split_dir)  # split train/validate set
         
-        if "delay_json_path" in params: # 只有inference时 有这个参数
+        if "delay_json_path" in params: # 只有inference_diff_delay时 有这个参数
             path_name = params["delay_json_path"]
             self.predict_delay = int(re.search(r'(\d+)ms', path_name).group(1)) if re.search(r'(\d+)ms', path_name) else None
         else:
             path_name = 'cooperative/data_info_delay_0ms.json'
-            # path_name = 'cooperative/data_info_delay_100ms.json'
         co_datainfo = load_json(os.path.join(self.root_dir, path_name))
         
         self.co_data = OrderedDict()
@@ -113,14 +112,11 @@ class IntermediateFusionDatasetDAIR(Dataset):
             self.veh_infra_id_list[veh_frame_id] = infra_frame_id
         self.frame_id_list = sorted(self.frame_id_list)
         
-        self.infra_timestamp = load_json("infra_timestamps.json")
-        self.veh_timestamp = load_json("veh_timestamps.json")
-        
     def retrieve_multi_data(self, idx, select_num):
         
         if select_num == 0:  # 不需要his
             base_data_dict, cur_timestamp = self.retrieve_base_data(idx) 
-            return [base_data_dict], [cur_timestamp]
+            return [base_data_dict], [cur_timestamp], []
         
         select_dict = []
         timestamp_list = []
@@ -143,13 +139,12 @@ class IntermediateFusionDatasetDAIR(Dataset):
         
         if self.train_flow: 
             k = random.choice([1, 2])  
-            # finetune  用0ms  100ms
-            # k = 0  
             fur_idx = cur_idx + k
             self.t_cur_fut = k
         else: # 推理时  无须加载未来帧
             k = 0
-            fur_idx = cur_idx + k                 
+            fur_idx = cur_idx + k     
+            self.t_cur_fut = int(self.predict_delay/100)          
 
         if fur_idx < len(self.frame_id_list):
             fur_timestamp = self.frame_id_list[fur_idx]
@@ -160,25 +155,9 @@ class IntermediateFusionDatasetDAIR(Dataset):
 
         timestamp_list.append(fur_timestamp)
         select_dict.append(base_data_dict)
+                
+        self.t_his_cur = self.before_frame  # 1 用历史1帧  
         
-        # 都是用infra_timestamp计算
-        # self.t_his_cur = ( int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[-2]]]) )  // 1000
-        
-        # train flow_predict模块
-        # self.t_cur_fut = ( int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[-1]]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) )  // 1000
-        
-        # inference
-        # self.t_cur_fut = self.predict_delay // 100
-        
-        # fine_tune  head
-        # self.t_cur_fut = ( int(self.veh_timestamp[timestamp_list[-1]]) - int(self.infra_timestamp[self.veh_infra_id_list[timestamp_list[0]]]) )  // 1000
-        
-        # 粗时延 fine
-        self.t_his_cur = self.before_frame  # 用历史1帧   100ms
-        self.t_cur_fut = k # 预测1帧 100ms 
-        
-        if self.t_his_cur == 0:
-            self.t_his_cur = 100
         times = [self.t_his_cur, self.t_cur_fut]
         
         return select_dict,timestamp_list,times

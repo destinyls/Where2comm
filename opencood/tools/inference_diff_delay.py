@@ -206,7 +206,7 @@ def evaluation(model, data_loader, opt, opencood_dataset, device, test_inference
         f.write(msg)
         print(msg)
 
-def inference_status(agent_staus):
+def inference_status(agent_staus, delay):
     opt = test_parser()
     assert opt.fusion_method in ['late', 'early', 'intermediate', 'intermediate_with_comm', 'no']
     hypes = yaml_utils.load_yaml(None, opt)
@@ -230,7 +230,10 @@ def inference_status(agent_staus):
     print(f"Left hand visualizing: {left_hand}")
 
     print('Dataset Building')
-        
+    
+    hypes['model']['args']['fusion_args']['para']['flow_train'] = False
+    hypes['delay_json_path'] = 'cooperative/data_info_delay_'+ str(delay) + 'ms.json'
+    
     opencood_dataset = build_dataset(hypes, visualize=True, train=False)
     data_loader = DataLoader(opencood_dataset,
                              batch_size=1,
@@ -246,7 +249,7 @@ def inference_status(agent_staus):
     if torch.cuda.is_available():
         model.cuda()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    eval_epochs = [65,69]
+    eval_epochs = [69]
     for model_name in os.listdir(opt.model_dir):
         if ".pth" not in model_name: continue
         epoch_id = int(model_name.split('.')[0][9:])
@@ -255,17 +258,19 @@ def inference_status(agent_staus):
         epoch_id, model = train_utils.load_saved_model(opt.model_dir, model, epoch_id)
         model.eval()
 
-        evaluation(model, data_loader, opt, opencood_dataset, device, test_inference, hypes, left_hand, epoch_id, agent_staus, 0)
+        evaluation(model, data_loader, opt, opencood_dataset, device, test_inference, hypes, left_hand, epoch_id, agent_staus, delay)
     
 
 def main():
+    delay = [0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
     for i in range(10):
-        # eval V+I
-        inference_status("V+I")
-        # eval singleV
-        # inference_status("singleV")
-        # eval singleI
-        # inference_status("singleI")
+        for d in delay:    
+            # eval V+I
+            inference_status("V+I",d)
+            # eval singleV
+            # inference_status("singleV")
+            # eval singleI
+            # inference_status("singleI")
 
 if __name__ == '__main__':
     main()

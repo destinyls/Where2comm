@@ -74,9 +74,8 @@ def main_worker(local_rank, nprocs, opt):
         scheduler = train_utils.setup_lr_schedular(hypes, optimizer, init_epoch=init_epoch)
     else:
         if hypes['resume'] is not None:
-            # model = train_utils.load_model_infra(hypes['resume'], model.module if distributed else model)   # 只加载infra端权重
-            model = train_utils.load_model_infra_veh_crhead(hypes['resume'], model.module if distributed else model)  # load infra veh head  for train_Flow_predict
-            # model = train_utils.load_whole_model(hypes['resume'], model.module if distributed else model)   # load whole for finetune_Head
+            model = train_utils.load_model_infra(hypes['resume'], model.module if distributed else model)   # only load infra for train_mask
+            # model = train_utils.load_model_infra_veh_crhead(hypes['resume'], model.module if distributed else model)  # load infra veh head  for train_Flow_predict
         init_epoch = 0
         # if we train the model from scratch, we need to create a folder
         # to save the model,
@@ -157,13 +156,6 @@ def main_worker(local_rank, nprocs, opt):
                 eta_seconds = mean_batch_time * (len(train_loader) * epoches - (len(train_loader) * epoch + i))
                 eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
                 criterion.logging(epoch, i, len(train_loader), eta_string, writer, nprocs)
-
-            if loss_offset is not None:
-                with open('offset_losses.json', 'r') as f:
-                    data = json.load(f)
-                with open('offset_losses.json', 'w') as f:
-                    data.append(loss_offset[0].item())
-                    json.dump(data, f, indent=4)
                     
             # back-propagation
             final_loss.backward()
@@ -171,13 +163,12 @@ def main_worker(local_rank, nprocs, opt):
 
             torch.cuda.empty_cache()
 
-        if epoch % hypes['train_params']['save_freq'] == 0 and local_rank == 0 and epoch > 5: 
+        if epoch % hypes['train_params']['save_freq'] == 0 and local_rank == 0 and epoch > 20: 
             torch.save(model.state_dict(),
                        os.path.join(saved_path,
                                     'net_epoch%d.pth' % (epoch + 1)))
         scheduler.step(epoch)
 
-    f.close()
     print('Training Finished, checkpoints saved to %s' % saved_path)
     torch.cuda.empty_cache()
     run_test = False

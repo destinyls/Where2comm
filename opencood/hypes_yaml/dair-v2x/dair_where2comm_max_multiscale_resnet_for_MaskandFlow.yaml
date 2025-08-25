@@ -4,7 +4,7 @@ data_dir: "dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure"
 root_dir: "dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure/train.json"
 validate_dir: "dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure/val.json"
 test_dir: "dataset/my_dair_v2x/v2x_c/cooperative-vehicle-infrastructure/val.json"
-resume: "opencood/logs/hisexp/flowPre_dair_where2comm_max_multiscale_resnet_2024_10_14_18_59_48/net_epoch15.pth"
+resume: "opencood/logs/exp/baseline_dair_where2comm_max_multiscale_resnet_2024_09_04_23_11_03/net_epoch69.pth"
 
 noise_setting:
   add_noise: False
@@ -19,9 +19,9 @@ noise_setting:
 yaml_parser: "load_point_pillar_params"
 train_params:
   batch_size: &batch_size 2  # 6
-  epoches: 18
-  eval_freq: 2  
-  save_freq: 2 
+  epoches: 20
+  eval_freq: 3  
+  save_freq: 3 
   max_cav: &max_cav 2
 
 
@@ -85,8 +85,8 @@ model:
     compression: 0 # compression rate
     vehicle_fix: true
     infra_fix: true
-    head_fix: False
-    fuse_fix: true  # for finetune head
+    head_fix: true
+    fuse_fix: false  # 单独训练flow时，fuse模块中只有flow
 
     pillar_vfe:
       use_norm: true
@@ -140,8 +140,8 @@ model:
       layer_nums: *layer_nums
       num_filters: *num_filters
       para:  
-        mode:  flowPre   # baseline; maskAndRec; onlyMask;  onlyVehFea; flowPre; correctPosition(暂不考虑)
-        mask_ratio:  1 # 0.5 0.7 0.9 0.95
+        mode:  MaskandFlow   # baseline; maskAndRec; onlyMask;  onlyVehFea; flowPre; MaskandFlow
+        mask_ratio:  0.5 # 0.5 0.7 0.9 0.95
         his_flag: true
         before_frame: 1 
         flow_train: true  # val->false
@@ -156,7 +156,7 @@ loss:
 
 optimizer:
   core_method: Adam
-  lr: 0.010  # 0.002
+  lr: 0.0010  # 0.002
   args:
     eps: 1e-10
     weight_decay: 1e-4

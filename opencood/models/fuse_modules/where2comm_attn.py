@@ -418,10 +418,55 @@ class Where2comm(nn.Module):
                     elif self.mode == "flowPre":
                         if not self.training : # inference predict_flow
                             node_features = torch.cat((node_features[0].unsqueeze(0), infra_prefea[i][b].unsqueeze(0)), dim=0)   # vehicle+infra [2, 64, 100, 252]
-                        # fine_tune
-                        # node_features = torch.cat((node_features[0].unsqueeze(0), infra_prefea[i][b].unsqueeze(0)), dim=0) 
                         neighbor_feature = warp_affine_simple(node_features, t_matrix[0, :, :, :], (H, W))
                         fuse_feature = self.fuse_modules[i](neighbor_feature)   # [2, 64, 100, 252]  
+                    elif self.mode == "MaskandFlow":  # 仍有问题
+                        # flow
+                        node_features = torch.cat((node_features[0].unsqueeze(0), infra_prefea[i][b].unsqueeze(0)), dim=0)   # vehicle+pred_infra [2, 64, 100, 252]
+                        # MaskAndRec
+                        pred_box_infra, pred_score_infra, sample_idx = pred_box_infra_list[b], pred_score_infra_list[b], sample_idx_list[b]
+                        gaussian_maps = self.gaussian(pred_box_infra, torch.zeros_like(node_features[1].unsqueeze(0)), i, sample_idx)                 
+                        
+                        infra_features = node_features[1].unsqueeze(0) * (gaussian_maps > 0).float()  
+                        n, c, h, w = infra_features.shape[0], infra_features.shape[1], infra_features.shape[2], infra_features.shape[3]
+ 
+                        ''' mae restruction '''
+                        HWC = self.multi_scale_map[i]
+                        max_hw, min_hw = max(HWC[0], HWC[1]), min(HWC[0], HWC[1])
+                                            
+                        downsample_factor_h, downsample_factor_w, _ = self.downsample_factor[min_hw]
+                        # 调整 infra_feature形状 用于 mae
+                        infra_features = infra_features.view(infra_features.shape[1], infra_features.shape[2] // downsample_factor_h, downsample_factor_h, infra_features.shape[3] // downsample_factor_w, downsample_factor_w)
+                        infra_features = infra_features.permute(0, 1, 3, 2, 4).contiguous()
+                        infra_features = infra_features.view(infra_features.shape[0], -1, downsample_factor_h, downsample_factor_w)
+                        infra_features = infra_features.permute(1, 0, 2, 3).contiguous()
+
+                        pred, mask = self.mae_modules[i](infra_features, mask_ratio=self.mask_ratio)  # random masked and reconstruction
+                        hw = self.mae_modules[i].get_hw(infra_features)
+                        mask = self.mae_modules[i].unpatchify(mask.unsqueeze(-1).repeat(1, 1, int(self.mae_modules[i].patch_embed.patch_size[0])**2), hw)                    
+                        mask = self.mae_modules[i].patchify(mask)[:, :, 0]
+                        
+                        if self.training:   # loss_mae 累加
+                            if loss_mae is None:
+                                mask[:, :] = 1
+                                loss_mae = self.mae_modules[i].forward_loss(infra_features, pred, mask)
+                            else:
+                                mask[:, :] = 1
+                                loss_mae += self.mae_modules[i].forward_loss(infra_features, pred, mask)   
+                        
+                        infra_features_mae = self.mae_modules[i].unpatchify(pred, hw)[:, :, :min_hw, :]
+
+                        infra_features_mae = infra_features_mae.permute(1, 0, 2, 3).contiguous()
+                        infra_features_mae = infra_features_mae.view(c, h // downsample_factor_h, w // downsample_factor_w, downsample_factor_h, downsample_factor_w)
+                        infra_features_mae = infra_features_mae.permute(0, 1, 3, 2, 4).contiguous()
+                        infra_features_mae = infra_features_mae.view(1, c, h, w)
+
+                        node_features = torch.cat((node_features[0].unsqueeze(0), infra_features_mae), dim=0)   # vehicle+infra [2, 64, 100, 252]
+                        neighbor_feature = warp_affine_simple(node_features, t_matrix[0, :, :, :], (H, W))
+                        fuse_feature = self.fuse_modules[i](neighbor_feature) 
+                        fuse_feature = torch.cat((fuse_feature.unsqueeze(0), gaussian_maps), dim=0) 
+                        fuse_feature = warp_affine_simple(fuse_feature, t_matrix[0, :, :, :], (H, W))
+                        fuse_feature = self.fuse_modules[i](fuse_feature)
                     elif self.mode == "correctPosition":   # 暂时不考虑这个
                         neighbor_feature = warp_affine_simple(node_features, t_matrix[0, :, :, :], (H, W))
                         vehicle_fea = node_features[0].unsqueeze(0)
